@@ -8,6 +8,8 @@ templates.json
 recordings/
 dist/
 build/
+*.spec
+!CtrlNote.spec
 .pytest_cache/
 .env
 *.log
