@@ -1,0 +1,16 @@
+{
+  "vault_path": "C:/Users/You/Documents/ObsidianVault",
+  "hotkey": "ctrl+alt+n",
+  "last_folder": "",
+  "autostart": false,
+  "auto_folder": true,
+  "voice_language": "ru",
+  "whisper_model": "small",
+  "voice_engine": "local",
+  "openai_api_key": "",
+  "save_voice_audio": true,
+  "link_daily_note": false,
+  "append_daily_note": false,
+  "daily_note_folder": "",
+  "daily_note_format": "YYYY-MM-DD"
+}
