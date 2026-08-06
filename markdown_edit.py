@@ -1,7 +1,7 @@
 """
-Горячие клавиши редактирования markdown в поле заметки (как в Obsidian).
+Markdown editing shortcuts with visual bold/italic (no visible ** / *).
 
-Ctrl+B — жирный, Ctrl+I — курсив, Enter — продолжение списка.
+Ctrl+B / Ctrl+I toggle font weight/slant tags. On save we export real markdown.
 """
 
 from __future__ import annotations
@@ -10,67 +10,203 @@ import re
 import tkinter as tk
 from typing import Any
 
-# Распознаём строки списка: - пункт, * пункт, 1. пункт и т.п.
 _LIST_RE = re.compile(r"^(\s*)([-*+]|\d+[.)])(\s*)(.*)$")
-
-# Физические коды клавиш B и I (не зависят от русской/английской раскладки)
 _VK_B = 66
 _VK_I = 73
+_MD_BOLD = re.compile(r"\*\*(.+?)\*\*")
+_MD_ITALIC = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
 
 
 def _inner_text(widget: Any) -> tk.Text:
-    """Достаёт настоящий виджет текста из обёртки CustomTkinter."""
     inner = getattr(widget, "_textbox", None)
     return inner if inner is not None else widget
 
 
-def toggle_wrap(widget: Any, marker: str) -> None:
-    """
-    Оборачивает выделенный текст маркерами (** или *) или снимает их, если уже есть.
-
-    Если ничего не выделено — берёт слово под курсором или вставляет пустые маркеры.
-    """
+def setup_rich_tags(widget: Any) -> None:
+    """Configure bold/italic display tags on the underlying Text widget."""
     text = _inner_text(widget)
+    base = text.cget("font")
     try:
-        start = text.index("sel.first")
-        end = text.index("sel.last")
-        selected = text.get(start, end)
+        # Prefer tuple fonts for reliable bold/italic variants
+        family = "Segoe UI"
+        size = 14
+        if isinstance(base, str) and base:
+            # e.g. "{Segoe UI} 14" or "SegoeUI 14"
+            parts = text.tk.splitlist(base)
+            if parts:
+                family = parts[0]
+            if len(parts) > 1:
+                try:
+                    size = int(float(parts[1]))
+                except ValueError:
+                    pass
+        text.tag_configure("bold", font=(family, size, "bold"))
+        text.tag_configure("italic", font=(family, size, "italic"))
+        text.tag_configure("bold_italic", font=(family, size, "bold italic"))
+    except tk.TclError:
+        text.tag_configure("bold", font="TkDefaultFont 14 bold")
+        text.tag_configure("italic", font="TkDefaultFont 14 italic")
+
+
+def _selection_range(text: tk.Text) -> tuple[str, str] | None:
+    try:
+        return text.index("sel.first"), text.index("sel.last")
     except tk.TclError:
         try:
             start = text.index("insert wordstart")
             end = text.index("insert wordend")
-            selected = text.get(start, end)
-            if not selected.strip():
-                raise tk.TclError
+            if text.get(start, end).strip():
+                return start, end
         except tk.TclError:
-            # Нет выделения — ставим **|** и курсор посередине
-            text.insert("insert", f"{marker}{marker}")
-            text.mark_set("insert", f"insert-{len(marker)}c")
-            return
+            return None
+    return None
 
-    # Уже обёрнуто — снимаем; иначе — оборачиваем
-    if (
-        selected.startswith(marker)
-        and selected.endswith(marker)
-        and len(selected) >= 2 * len(marker)
-    ):
-        replacement = selected[len(marker) : -len(marker)]
+
+def _refresh_combined_tags(text: tk.Text, start: str, end: str) -> None:
+    """Ensure bold+italic overlap uses bold_italic font."""
+    text.tag_remove("bold_italic", start, end)
+    # Walk the range in small steps
+    index = start
+    while text.compare(index, "<", end):
+        nxt = text.index(f"{index}+1c")
+        tags = set(text.tag_names(index))
+        if "bold" in tags and "italic" in tags:
+            text.tag_add("bold_italic", index, nxt)
+        index = nxt
+
+
+def toggle_style(widget: Any, style: str) -> None:
+    """Toggle visual bold or italic on the selection (no markdown markers)."""
+    text = _inner_text(widget)
+    setup_rich_tags(widget)
+    rng = _selection_range(text)
+    if rng is None:
+        # Nothing to style — insert a space and style it so typing continues bold
+        text.insert("insert", " ")
+        start = text.index("insert-1c")
+        end = text.index("insert")
+        text.tag_add(style, start, end)
+        text.mark_set("insert", end)
+        text.tag_remove("sel", "1.0", "end")
+        return
+
+    start, end = rng
+    # If every character already has the style, remove; else add
+    index = start
+    all_have = True
+    while text.compare(index, "<", end):
+        if style not in text.tag_names(index):
+            all_have = False
+            break
+        index = text.index(f"{index}+1c")
+
+    if all_have:
+        text.tag_remove(style, start, end)
     else:
-        replacement = f"{marker}{selected}{marker}"
-
-    text.delete(start, end)
-    text.insert(start, replacement)
+        text.tag_add(style, start, end)
+    _refresh_combined_tags(text, start, end)
     text.tag_remove("sel", "1.0", "end")
-    text.mark_set("insert", f"{start}+{len(replacement)}c")
+    text.mark_set("insert", end)
     text.see("insert")
 
 
+def toggle_wrap(widget: Any, marker: str) -> None:
+    """Back-compat: ** → bold tag, * → italic tag."""
+    if marker == "**":
+        toggle_style(widget, "bold")
+    else:
+        toggle_style(widget, "italic")
+
+
+def widget_to_markdown(widget: Any) -> str:
+    """Export widget content with ** / * for styled spans (for Obsidian)."""
+    text = _inner_text(widget)
+    end = text.index("end-1c")
+    if text.compare("1.0", ">=", end):
+        return ""
+
+    out: list[str] = []
+    index = "1.0"
+    bold = italic = False
+
+    while text.compare(index, "<", end):
+        ch = text.get(index)
+        tags = set(text.tag_names(index))
+        want_bold = "bold" in tags or "bold_italic" in tags
+        want_italic = "italic" in tags or "bold_italic" in tags
+
+        # Close markers before opening changes when leaving a style
+        if bold and not want_bold:
+            out.append("**")
+            bold = False
+        if italic and not want_italic:
+            out.append("*")
+            italic = False
+
+        if want_italic and not italic:
+            out.append("*")
+            italic = True
+        if want_bold and not bold:
+            out.append("**")
+            bold = True
+
+        out.append(ch)
+        index = text.index(f"{index}+1c")
+
+    if bold:
+        out.append("**")
+    if italic:
+        out.append("*")
+    return "".join(out)
+
+
+def set_widget_markdown(widget: Any, md: str) -> None:
+    """Load markdown into the widget, showing bold/italic without markers."""
+    text = _inner_text(widget)
+    setup_rich_tags(widget)
+    text.delete("1.0", "end")
+    if not md:
+        return
+
+    # Simple parse: split by ** and * (non-greedy sequential)
+    # Strategy: convert to list of (segment, bold, italic)
+    pos = 0
+    bold = italic = False
+    # Tokenize with regex finding ** or *
+    token_re = re.compile(r"\*\*|\*")
+    chunks: list[tuple[str, bool, bool]] = []
+    for m in token_re.finditer(md):
+        if m.start() > pos:
+            chunks.append((md[pos : m.start()], bold, italic))
+        tok = m.group(0)
+        if tok == "**":
+            bold = not bold
+        else:
+            italic = not italic
+        pos = m.end()
+    if pos < len(md):
+        chunks.append((md[pos:], bold, italic))
+
+    for segment, is_bold, is_italic in chunks:
+        if not segment:
+            continue
+        start = text.index("insert")
+        text.insert("insert", segment)
+        end = text.index("insert")
+        if is_bold and is_italic:
+            text.tag_add("bold", start, end)
+            text.tag_add("italic", start, end)
+            text.tag_add("bold_italic", start, end)
+        elif is_bold:
+            text.tag_add("bold", start, end)
+        elif is_italic:
+            text.tag_add("italic", start, end)
+
+
 def continue_list_on_return(widget: Any) -> str | None:
-    """Если текущая строка — пункт списка, по Enter создаёт следующий пункт."""
     text = _inner_text(widget)
     line_start = text.index("insert linestart")
     line_end = text.index("insert lineend")
-    # Продолжаем список только если курсор в конце строки (или после пробелов)
     after = text.get("insert", line_end)
     if after.strip():
         return None
@@ -82,8 +218,6 @@ def continue_list_on_return(widget: Any) -> str | None:
 
     indent, marker, space, body = match.groups()
     gap = space if space else " "
-
-    # Пустой пункт списка — Enter «закрывает» список (удаляет маркер)
     if not body.strip():
         text.delete(line_start, line_end)
         return "break"
@@ -96,7 +230,6 @@ def continue_list_on_return(widget: Any) -> str | None:
 
 
 def _next_marker(marker: str) -> str:
-    """Для «-» оставляет «-»; для «1.» даёт «2.» и т.д."""
     if marker in {"-", "*", "+"}:
         return marker
     num_match = re.match(r"(\d+)", marker)
@@ -107,22 +240,17 @@ def _next_marker(marker: str) -> str:
 
 
 def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
-    """
-    Вешает Ctrl+B / Ctrl+I и продолжение списка на Enter.
-
-    Привязка один раз через CTkTextbox.bind (иначе жирный «мигает» туда-сюда).
-    """
+    setup_rich_tags(textbox)
 
     def on_bold(_event: tk.Event | None = None) -> str:
-        toggle_wrap(textbox, "**")
+        toggle_style(textbox, "bold")
         return "break"
 
     def on_italic(_event: tk.Event | None = None) -> str:
-        toggle_wrap(textbox, "*")
+        toggle_style(textbox, "italic")
         return "break"
 
     def on_ctrl_key(event: tk.Event) -> str | None:
-        # По физическим клавишам — работает и на русской раскладке
         if event.keycode == _VK_B:
             return on_bold(event)
         if event.keycode == _VK_I:
@@ -140,7 +268,6 @@ def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
     textbox.bind("<Return>", on_return)
     textbox.bind("<KP_Enter>", on_return)
 
-    # Запасной вариант через корневое окно (фокус / раскладка)
     def on_root_ctrl(event: tk.Event) -> str | None:
         focus = root.focus_get()
         inner = getattr(textbox, "_textbox", None)

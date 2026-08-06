@@ -20,14 +20,14 @@ from ui_icon import apply_window_icon
 
 # Палитра цветов для кисти
 COLORS = [
-    ("#111111", "Чёрный"),
-    ("#ffffff", "Белый"),
-    ("#e74c3c", "Красный"),
-    ("#2980b9", "Синий"),
-    ("#27ae60", "Зелёный"),
-    ("#8e44ad", "Фиолет"),
-    ("#f39c12", "Оранж"),
-    ("#f1c40f", "Жёлтый"),
+    ("#111111", "Black"),
+    ("#ffffff", "White"),
+    ("#e74c3c", "Red"),
+    ("#2980b9", "Blue"),
+    ("#27ae60", "Green"),
+    ("#8e44ad", "Purple"),
+    ("#f39c12", "Orange"),
+    ("#f1c40f", "Yellow"),
 ]
 
 # Размер холста в пикселях
@@ -36,8 +36,8 @@ CANVAS_H = 420
 BG_RGB = (255, 255, 255)
 BG_HEX = "#ffffff"
 
-# Инструменты на панели
-TOOLS = ["Перо", "Ластик", "Линия", "Прямоуг", "Круг", "Заливка"]
+# Stable tool ids (UI labels come from i18n.paint_tools())
+TOOL_IDS = ["pen", "eraser", "line", "rect", "oval", "fill"]
 
 
 @dataclass
@@ -160,10 +160,15 @@ class PaintWindow:
         *,
         with_screenshot: bool = False,
     ) -> None:
+        from i18n import paint_tools, t
+
         self.on_done = on_done
         self._parent = parent
         self._color = COLORS[0][0]
-        self._tool = "Перо"
+        labels = paint_tools()
+        self._id_by_label = dict(zip(labels, TOOL_IDS))
+        self._label_by_id = dict(zip(TOOL_IDS, labels))
+        self._tool = TOOL_IDS[0]
         self._thickness = 4
         self._history: list[HistoryEntry] = []  # отмена
         self._redo: list[HistoryEntry] = []  # повтор
@@ -183,7 +188,7 @@ class PaintWindow:
         self._base = base
 
         self.dialog = ctk.CTkToplevel(parent)
-        self.dialog.title("Рисунок")
+        self.dialog.title(t("paint_title"))
         self.dialog.geometry("780x580")
         self.dialog.minsize(680, 520)
         self.dialog.attributes("-topmost", True)
@@ -196,10 +201,10 @@ class PaintWindow:
         row1 = ctk.CTkFrame(self.dialog, fg_color="transparent")
         row1.pack(fill="x", padx=12, pady=(12, 4))
 
-        self._tool_var = ctk.StringVar(value="Перо")
+        self._tool_var = ctk.StringVar(value=labels[0])
         ctk.CTkSegmentedButton(
             row1,
-            values=TOOLS,
+            values=labels,
             variable=self._tool_var,
             command=self._on_tool,
             height=28,
@@ -228,7 +233,7 @@ class PaintWindow:
             self._color_buttons[hex_color] = btn
         self._refresh_color_selection()
 
-        ctk.CTkLabel(row2, text="Толщина").pack(side="left", padx=(4, 4))
+        ctk.CTkLabel(row2, text=t("paint_size")).pack(side="left", padx=(4, 4))
         self._thick_label = ctk.CTkLabel(row2, text="4 px", width=44)
         self._thick_label.pack(side="left")
         self._thick = ctk.CTkSlider(
@@ -246,12 +251,12 @@ class PaintWindow:
             side="right", padx=(4, 0)
         )
         ctk.CTkButton(row2, text="Undo", width=60, command=self._undo).pack(side="right")
-        ctk.CTkButton(row2, text="Очистить", width=80, command=self._clear).pack(
+        ctk.CTkButton(row2, text=t("paint_clear"), width=80, command=self._clear).pack(
             side="right", padx=(0, 4)
         )
         ctk.CTkButton(
             row2,
-            text="Вставить",
+            text=t("paint_paste"),
             width=80,
             command=self._paste_background,
             fg_color="#333333",
@@ -259,7 +264,7 @@ class PaintWindow:
         ).pack(side="right", padx=(0, 4))
         ctk.CTkButton(
             row2,
-            text="Скрин",
+            text=t("paint_shot"),
             width=70,
             command=self._rescreenshot,
             fg_color="#333333",
@@ -285,25 +290,29 @@ class PaintWindow:
         self.canvas.bind("<ButtonPress-1>", self._down)
         self.canvas.bind("<B1-Motion>", self._move)
         self.canvas.bind("<ButtonRelease-1>", self._up)
-        self.dialog.bind("<Control-v>", lambda _e: self._paste_background())
-        self.dialog.bind("<Control-V>", lambda _e: self._paste_background())
-        self.canvas.bind("<Control-v>", lambda _e: self._paste_background())
-        self.canvas.bind("<Control-V>", lambda _e: self._paste_background())
+        def _paste_event(_e=None):
+            self._paste_background()
+            return "break"
+
+        for seq in ("<Control-v>", "<Control-V>"):
+            self.dialog.bind(seq, _paste_event)
+            self.canvas.bind(seq, _paste_event)
+        self.dialog.bind_all("<Control-v>", _paste_event)
 
         footer = ctk.CTkFrame(self.dialog, fg_color="transparent")
         footer.pack(fill="x", padx=12, pady=(6, 12))
         ctk.CTkLabel(
             footer,
-            text="По умолчанию пустой холст · Скрин / Вставить (Ctrl+V) — фон",
+            text=t("paint_hint"),
             text_color="#666666",
             font=ctk.CTkFont(size=11),
         ).pack(side="left")
-        ctk.CTkButton(footer, text="Отмена", width=100, command=self.dialog.destroy).pack(
+        ctk.CTkButton(footer, text=t("paint_cancel"), width=100, command=self.dialog.destroy).pack(
             side="right"
         )
         ctk.CTkButton(
             footer,
-            text="Вставить в заметку",
+            text=t("paint_insert"),
             width=160,
             command=self._insert,
             fg_color="#3878fa",
@@ -343,36 +352,37 @@ class PaintWindow:
 
     def _pen_width(self) -> int:
         """Толщина линии; у ластика чуть больше."""
-        if self._tool == "Ластик":
+        if self._tool == "eraser":
             return max(self._thickness * 2, self._thickness + 6)
         return self._thickness
 
     def _draw_color(self) -> str:
         """Цвет рисования; ластик = цвет фона."""
-        if self._tool == "Ластик":
+        if self._tool == "eraser":
             return BG_HEX
         return self._color
 
     def _on_tool(self, value: str) -> None:
         """Смена инструмента на панели."""
-        self._tool = value
+        self._tool = self._id_by_label.get(value, "pen")
         cursors = {
-            "Перо": "pencil",
-            "Ластик": "dotbox",
-            "Линия": "crosshair",
-            "Прямоуг": "crosshair",
-            "Круг": "crosshair",
-            "Заливка": "spraycan",
+            "pen": "pencil",
+            "eraser": "dotbox",
+            "line": "crosshair",
+            "rect": "crosshair",
+            "oval": "crosshair",
+            "fill": "spraycan",
         }
-        self.canvas.configure(cursor=cursors.get(value, "arrow"))
+        self.canvas.configure(cursor=cursors.get(self._tool, "arrow"))
 
     def _set_color(self, color: str) -> None:
         """Выбор цвета кисти."""
         self._color = color
-        if self._tool == "Ластик":
-            self._tool = "Перо"
-            self._tool_var.set("Перо")
-            self._on_tool("Перо")
+        if self._tool == "eraser":
+            self._tool = "pen"
+            pen_label = self._label_by_id["pen"]
+            self._tool_var.set(pen_label)
+            self._on_tool(pen_label)
         self._refresh_color_selection()
 
     def _refresh_color_selection(self) -> None:
@@ -418,12 +428,12 @@ class PaintWindow:
         self._current_ids = []
         self._preview_id = None
 
-        if self._tool == "Заливка":
+        if self._tool == "fill":
             self._do_fill(event.x, event.y)
             self._start = None
             return
 
-        if self._tool in {"Перо", "Ластик"}:
+        if self._tool in {"pen", "eraser"}:
             # Dot at click
             r = max(1, self._pen_width() // 2)
             color = self._draw_color()
@@ -440,10 +450,10 @@ class PaintWindow:
 
     def _move(self, event: tk.Event) -> None:
         """Продолжение рисования при движении мыши."""
-        if self._start is None or self._tool == "Заливка":
+        if self._start is None or self._tool == "fill":
             return
 
-        if self._tool in {"Перо", "Ластик"}:
+        if self._tool in {"pen", "eraser"}:
             if self._last is None:
                 return
             x0, y0 = self._last
@@ -469,25 +479,25 @@ class PaintWindow:
         x0, y0 = self._start
         color = self._color
         width = self._pen_width()
-        if self._tool == "Линия":
+        if self._tool == "line":
             self._preview_id = self.canvas.create_line(
                 x0, y0, event.x, event.y, fill=color, width=width, tags=("ink", "preview")
             )
-        elif self._tool == "Прямоуг":
+        elif self._tool == "rect":
             self._preview_id = self.canvas.create_rectangle(
                 x0, y0, event.x, event.y, outline=color, width=width, tags=("ink", "preview")
             )
-        elif self._tool == "Круг":
+        elif self._tool == "oval":
             self._preview_id = self.canvas.create_oval(
                 x0, y0, event.x, event.y, outline=color, width=width, tags=("ink", "preview")
             )
 
     def _up(self, event: tk.Event) -> None:
         """Завершение штриха / фигуры при отпускании мыши."""
-        if self._tool == "Заливка":
+        if self._tool == "fill":
             return
 
-        if self._tool in {"Перо", "Ластик"}:
+        if self._tool in {"pen", "eraser"}:
             self._push_items(self._current_ids)
             self._current_ids = []
             self._last = None
@@ -606,16 +616,10 @@ class PaintWindow:
         self._apply_raster(after)
 
     def _paste_background(self) -> str:
-        """Вставляет картинку из буфера обмена как фон."""
-        clipped = ImageGrab.grabclipboard()
-        img: Image.Image | None = None
-        if isinstance(clipped, Image.Image):
-            img = clipped
-        elif isinstance(clipped, list) and clipped:
-            try:
-                img = Image.open(clipped[0]).convert("RGB")
-            except Exception:  # noqa: BLE001
-                img = None
+        """Paste clipboard image as canvas background."""
+        from clipboard_image import grab_clipboard_image
+
+        img = grab_clipboard_image()
         if img is None:
             return "break"
         self._set_background(img)

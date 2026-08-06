@@ -29,7 +29,7 @@ def run_onboarding(
         parent.lift()
 
     dialog = ctk.CTkToplevel(parent)
-    dialog.title("Настройка CtrlNote")
+    dialog.title("CtrlNote Setup")
     dialog.geometry("520x420")
     dialog.minsize(480, 380)
     dialog.attributes("-topmost", True)
@@ -69,8 +69,8 @@ def run_onboarding(
 
     footer = ctk.CTkFrame(dialog, fg_color="transparent")
     footer.pack(fill="x", padx=20, pady=16)
-    back_btn = ctk.CTkButton(footer, text="Назад", width=90)
-    next_btn = ctk.CTkButton(footer, text="Далее", width=120)
+    back_btn = ctk.CTkButton(footer, text="Back", width=90)
+    next_btn = ctk.CTkButton(footer, text="Next", width=120)
     back_btn.pack(side="left")
     next_btn.pack(side="right")
 
@@ -84,13 +84,13 @@ def run_onboarding(
         clear_content()
         n = step["n"]
         back_btn.configure(state="normal" if n > 0 else "disabled")
-        next_btn.configure(text="Готово" if n == 2 else "Далее")
+        next_btn.configure(text="Done" if n == 2 else "Next")
 
         if n == 0:
-            title.configure(text="Куда сохранять заметки?")
+            title.configure(text="Where should notes be saved?")
             subtitle.configure(
-                text="Выберите папку vault Obsidian — обычная папка на диске, "
-                "где лежат ваши .md файлы."
+                text="Choose your Obsidian vault folder — a normal folder on disk "
+                "that contains your .md files."
             )
             row = ctk.CTkFrame(content, fg_color="transparent")
             row.pack(fill="x")
@@ -100,32 +100,32 @@ def run_onboarding(
 
             def browse() -> None:
                 path = filedialog.askdirectory(
-                    title="Выберите vault Obsidian",
+                    title="Select Obsidian vault",
                     parent=dialog,
                 )
                 if path:
                     vault_var.set(path)
 
-            ctk.CTkButton(row, text="Обзор", width=80, command=browse).pack(side="right")
+            ctk.CTkButton(row, text="Browse", width=80, command=browse).pack(side="right")
 
         elif n == 1:
-            title.configure(text="Горячая клавиша")
+            title.configure(text="Hotkey")
             subtitle.configure(
-                text="По умолчанию Ctrl+Alt+N — чтобы не конфликтовать с Ctrl+N в других программах. "
-                "Формат: ctrl+alt+n"
+                text="Default is Ctrl+Alt+N — to avoid conflicting with Ctrl+N in other apps. "
+                "Format: ctrl+alt+n"
             )
             ctk.CTkEntry(content, textvariable=hotkey_var).pack(fill="x")
             ctk.CTkCheckBox(
                 content,
-                text="Запускать вместе с Windows",
+                text="Start with Windows",
                 variable=autostart_var,
             ).pack(anchor="w", pady=(16, 0))
 
         else:
-            title.configure(text="Голос (по желанию)")
+            title.configure(text="Voice (optional)")
             subtitle.configure(
-                text="Локальный Whisper работает без интернета (модель скачается при первом использовании). "
-                "OpenAI — быстрее, нужен API-ключ в настройках ⚙."
+                text="Local Whisper works offline (the model downloads on first use). "
+                "OpenAI is faster and needs an API key in Settings."
             )
             ctk.CTkOptionMenu(
                 content,
@@ -135,7 +135,7 @@ def run_onboarding(
             ).pack(anchor="w")
             ctk.CTkLabel(
                 content,
-                text="Позже всё можно изменить в ⚙ Настройки.",
+                text="You can change everything later in Settings.",
                 text_color="gray60",
             ).pack(anchor="w", pady=(16, 0))
 
@@ -143,7 +143,7 @@ def run_onboarding(
         """Проверяет данные, сохраняет настройки и закрывает мастер."""
         vault = vault_var.get().strip()
         if not vault:
-            messagebox.showwarning("CtrlNote", "Укажите папку vault.", parent=dialog)
+            messagebox.showwarning("CtrlNote", "Please choose a vault folder.", parent=dialog)
             step["n"] = 0
             render()
             return
@@ -151,7 +151,7 @@ def run_onboarding(
         from pathlib import Path
 
         if not Path(vault).expanduser().is_dir():
-            messagebox.showerror("CtrlNote", "Папка vault не найдена.", parent=dialog)
+            messagebox.showerror("CtrlNote", "Vault folder not found.", parent=dialog)
             step["n"] = 0
             render()
             return
@@ -165,7 +165,7 @@ def run_onboarding(
         except OSError as exc:
             messagebox.showerror(
                 "CtrlNote",
-                f"Не удалось настроить автозапуск:\n{exc}",
+                f"Could not configure autostart:\n{exc}",
                 parent=dialog,
             )
             return
@@ -181,7 +181,7 @@ def run_onboarding(
             if not vault_var.get().strip():
                 messagebox.showwarning(
                     "CtrlNote",
-                    "Сначала выберите папку vault Obsidian.",
+                    "Please select an Obsidian vault folder first.",
                     parent=dialog,
                 )
                 return

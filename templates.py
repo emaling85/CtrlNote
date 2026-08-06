@@ -51,8 +51,21 @@ DEFAULT_TEMPLATES: list[dict[str, str]] = [
     },
 ]
 
-# Пункт в списке: «не использовать шаблон»
-NONE_LABEL = "(без шаблона)"
+# Пункт в списке: «не использовать шаблон» (язык берётся из i18n)
+def none_label() -> str:
+    from i18n import t
+
+    return t("no_template")
+
+
+# Совместимость со старым импортом NONE_LABEL — обновляется при смене языка
+NONE_LABEL = "(no template)"
+
+
+def refresh_none_label() -> str:
+    global NONE_LABEL
+    NONE_LABEL = none_label()
+    return NONE_LABEL
 
 
 def _normalize(item: dict[str, Any]) -> dict[str, str] | None:
@@ -148,4 +161,5 @@ def get_template_by_name(name: str) -> dict[str, str] | None:
 
 def template_names() -> list[str]:
     """Список названий для выпадающего меню (с пунктом «без шаблона»)."""
+    refresh_none_label()
     return [NONE_LABEL, *[t["name"] for t in load_templates()]]

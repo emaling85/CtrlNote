@@ -39,6 +39,9 @@ class CtrlNoteApp:
     """«Мозг» приложения: связывает окно заметок, трей и горячую клавишу."""
 
     def __init__(self) -> None:
+        from i18n import init_from_config
+
+        init_from_config()
         # Тяжёлый UI подключаем только после проверки «один экземпляр»
         from capture_window import CaptureWindow
 
@@ -58,9 +61,11 @@ class CtrlNoteApp:
 
     def _on_saved(self, path: str) -> None:
         """После сохранения заметки обновляет подсказку у иконки в трее."""
+        from i18n import t
+
         self._last_saved = path
         if self.icon:
-            self.icon.title = f"CtrlNote — сохранено: {Path(path).name}"
+            self.icon.title = t("saved_tray", name=Path(path).name)
 
     def _schedule(self, callback) -> None:
         """Ставит действие в очередь главного потока интерфейса (безопасно для UI)."""
@@ -100,12 +105,13 @@ class CtrlNoteApp:
     def _build_tray(self):
         """Собирает меню правого клика по иконке в трее."""
         import pystray
+        from i18n import t
 
         menu = pystray.Menu(
-            pystray.MenuItem("Новая заметка", lambda: self._schedule(self.window.show), default=True),
-            pystray.MenuItem("Настройки", lambda: self._schedule(self.window.open_settings)),
+            pystray.MenuItem(t("new_note"), lambda: self._schedule(self.window.show), default=True),
+            pystray.MenuItem(t("settings"), lambda: self._schedule(self.window.open_settings)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Выход", self._quit),
+            pystray.MenuItem(t("exit"), self._quit),
         )
         return pystray.Icon("CtrlNote", _load_icon(), "CtrlNote", menu)
 
@@ -130,7 +136,7 @@ class CtrlNoteApp:
         tray_thread.start()
 
         print("CtrlNote is running.")
-        print("Close via tray icon → Выход.")
+        print("Close via tray icon → Exit.")
 
     def run(self) -> None:
         """Быстро входит в цикл окна; трей и хоткей доделывает на первом idle-тике."""
@@ -154,9 +160,12 @@ class CtrlNoteApp:
 
 def main() -> None:
     """Точка входа: не даём запустить вторую копию и стартуем приложение."""
+    from i18n import init_from_config
+
     if not ensure_single_instance():
         print("CtrlNote already running.", file=sys.stderr)
         sys.exit(0)
+    init_from_config()
     app = CtrlNoteApp()
     app.run()
 

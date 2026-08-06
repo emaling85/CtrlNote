@@ -154,7 +154,7 @@ def extract_context_name(title: str) -> str | None:
 
     raw = title.strip()
     # Свои окна не считаем контекстом
-    if raw in {"CtrlNote", "Настройки CtrlNote"}:
+    if raw in {"CtrlNote", "CtrlNote Settings", "Настройки CtrlNote"}:
         return None
 
     # Сначала ищем известные сайты в любом месте заголовка
@@ -283,7 +283,7 @@ def suggest_folder(vault_folders: list[str], title: str | None = None) -> str | 
     win_title = title if title is not None else get_foreground_title()
     if not win_title:
         return None
-    if win_title.strip() in {"CtrlNote", "Настройки CtrlNote"}:
+    if win_title.strip() in {"CtrlNote", "CtrlNote Settings", "Настройки CtrlNote"}:
         return None
     hints = extract_project_hints(win_title)
     return match_vault_folder(hints, vault_folders)

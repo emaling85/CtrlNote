@@ -23,15 +23,22 @@ class NextMarkerTests(unittest.TestCase):
 
 
 class ToggleWrapLogicTests(unittest.TestCase):
-    """Простые проверки строк, как у toggle_wrap (жирный/курсив)."""
+    def test_visual_bold_exports_markdown(self) -> None:
+        import tkinter as tk
 
-    def test_wrap_unwrap(self) -> None:
-        marker = "**"
-        selected = "hello"
-        wrapped = f"{marker}{selected}{marker}"
-        self.assertTrue(wrapped.startswith(marker) and wrapped.endswith(marker))
-        unwrapped = wrapped[len(marker) : -len(marker)]
-        self.assertEqual(unwrapped, "hello")
+        from markdown_edit import setup_rich_tags, toggle_style, widget_to_markdown
+
+        root = tk.Tk()
+        root.withdraw()
+        text = tk.Text(root)
+        setup_rich_tags(text)
+        text.insert("1.0", "hello")
+        text.tag_add("sel", "1.0", "1.5")
+        toggle_style(text, "bold")
+        self.assertEqual(text.get("1.0", "end-1c"), "hello")
+        self.assertIn("bold", text.tag_names("1.0"))
+        self.assertEqual(widget_to_markdown(text), "**hello**")
+        root.destroy()
 
 
 if __name__ == "__main__":

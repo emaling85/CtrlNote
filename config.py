@@ -103,7 +103,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "last_folder": "",  # последняя выбранная подпапка ("" = корень)
     "autostart": False,  # запускать ли вместе с Windows
     "auto_folder": True,  # подставлять папку по заголовку активного окна
-    "voice_language": "ru",  # язык распознавания речи
+    "voice_language": "en",  # speech recognition: en / ru / auto
+    "ui_language": "en",  # app UI: en | ru
     "whisper_model": "small",  # tiny | base | small | medium
     "voice_engine": "local",  # local = на компьютере, openai = через интернет
     "openai_api_key": "",  # ключ API (в файле хранится зашифрованным)

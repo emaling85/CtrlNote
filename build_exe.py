@@ -65,6 +65,14 @@ def main() -> int:
         "ui_icon",
         "--hidden-import",
         "vault_paths",
+        "--hidden-import",
+        "i18n",
+        "--hidden-import",
+        "clipboard_image",
+        "--hidden-import",
+        "voice",
+        "--hidden-import",
+        "capture_window",
         str(ROOT / "main.py"),
     ]
     print("Running:", " ".join(cmd))

@@ -16,7 +16,16 @@ import customtkinter as ctk
 from PIL import Image
 
 from config import is_configured, load_config, save_config
-from templates import NONE_LABEL, get_template_by_name, load_templates, template_names
+from paths import asset_path
+from i18n import get_language, init_from_config, set_language, t
+from markdown_edit import set_widget_markdown, setup_rich_tags, widget_to_markdown
+from templates import (
+    NONE_LABEL,
+    get_template_by_name,
+    load_templates,
+    refresh_none_label,
+    template_names,
+)
 
 
 class CaptureWindow:
@@ -37,6 +46,8 @@ class CaptureWindow:
         self.root = ctk.CTk()
         # Сразу прячем, чтобы при сборке UI не мигало пустое окно.
         self.root.withdraw()
+        init_from_config()
+        refresh_none_label()
         self.root.title("CtrlNote")
         self.root.geometry("560x400")
         self.root.minsize(480, 320)
@@ -44,10 +55,10 @@ class CaptureWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
 
         # Переменные интерфейса: выбранная папка, шаблон, статусная строка
-        self.folder_var = ctk.StringVar(value="(корень vault)")
+        self.folder_var = ctk.StringVar(value=t("vault_root"))
         self.template_var = ctk.StringVar(value=NONE_LABEL)
         self.status_var = ctk.StringVar(value="")
-        self._folder_map: dict[str, str] = {"(корень vault)": ""}
+        self._folder_map: dict[str, str] = {t("vault_root"): ""}
         self._visible = False
         self._show_gen = 0
         self._pending_images: list[tuple[str, Image.Image]] = []  # картинки до сохранения
@@ -58,6 +69,9 @@ class CaptureWindow:
         self._last_voice_end: str | None = None
 
         self._build_ui()
+        from ui_icon import apply_window_icon
+
+        apply_window_icon(self.root)
         self.root.bind("<Escape>", lambda _e: self.hide())
         self.root.bind("<Control-Return>", lambda _e: self._save())
         self.root.bind("<Control-KP_Enter>", lambda _e: self._save())
@@ -75,14 +89,21 @@ class CaptureWindow:
         # Тёмный спокойный фон
         self.root.configure(fg_color="#1a1a1a")
 
-        # Верхняя строка: выбор папки vault и кнопки (настройки, рисунок, микрофон)
+        # Верхняя строка: логотип, выбор папки vault и кнопки (настройки, рисунок, микрофон)
         top = ctk.CTkFrame(self.root, fg_color="transparent")
         top.pack(fill="x", padx=14, pady=(12, 6))
+
+        logo_path = asset_path("icon.png")
+        logo_img = Image.open(logo_path)
+        self._logo_image = ctk.CTkImage(light_image=logo_img, dark_image=logo_img, size=(28, 28))
+        ctk.CTkLabel(top, text="", image=self._logo_image, width=28, height=28).pack(
+            side="left", padx=(0, 8)
+        )
 
         self.folder_menu = ctk.CTkOptionMenu(
             top,
             variable=self.folder_var,
-            values=["(корень vault)"],
+            values=[t("vault_root")],
             width=220,
             height=28,
             fg_color="#2a2a2a",
@@ -133,6 +154,7 @@ class CaptureWindow:
             border_width=1,
         )
         self.text.pack(fill="both", expand=True, padx=14, pady=(0, 8))
+        setup_rich_tags(self.text)
 
         # Нижняя панель: вставка, шаблоны, отмена, сохранить
         footer = ctk.CTkFrame(self.root, fg_color="transparent")
@@ -146,40 +168,49 @@ class CaptureWindow:
             "text_color": "#aaaaaa",
             "border_width": 0,
         }
-        ctk.CTkButton(footer, text="Вставить", command=self._paste_from_clipboard, **ghost).pack(
-            side="left"
+        self.paste_btn = ctk.CTkButton(
+            footer, text=t("paste"), command=self._paste_from_clipboard, **ghost
         )
-        ctk.CTkButton(footer, text="Шаблоны", command=self.open_templates_manager, **ghost).pack(
-            side="left", padx=(4, 0)
+        self.paste_btn.pack(side="left")
+        self.templates_btn = ctk.CTkButton(
+            footer, text=t("templates"), command=self.open_templates_manager, **ghost
         )
+        self.templates_btn.pack(side="left", padx=(4, 0))
         self.redo_voice_btn = ctk.CTkButton(
             footer,
-            text="↻ Голос",
+            text=t("voice_again"),
             command=self._redo_voice,
             state="disabled",
-            **ghost,
+            width=100,
+            height=30,
+            fg_color="transparent",
+            hover_color="#2f2f2f",
+            text_color="#aaaaaa",
+            border_width=0,
         )
         self.redo_voice_btn.pack(side="left", padx=(4, 0))
 
-        ctk.CTkButton(
+        self.cancel_btn = ctk.CTkButton(
             footer,
-            text="Отмена",
+            text=t("cancel"),
             width=80,
             height=30,
             fg_color="transparent",
             hover_color="#2f2f2f",
             text_color="#888888",
             command=self.hide,
-        ).pack(side="right")
-        ctk.CTkButton(
+        )
+        self.cancel_btn.pack(side="right")
+        self.save_btn = ctk.CTkButton(
             footer,
-            text="Сохранить",
+            text=t("save"),
             width=110,
             height=30,
             fg_color="#3878fa",
             hover_color="#2f66d8",
             command=self._save,
-        ).pack(side="right", padx=(0, 6))
+        )
+        self.save_btn.pack(side="right", padx=(0, 6))
 
         ctk.CTkLabel(
             self.root,
@@ -198,9 +229,9 @@ class CaptureWindow:
 
         def on_context_menu(event: tk.Event) -> str:
             menu = tk.Menu(self.root, tearoff=0)
-            menu.add_command(label="Вставить", command=self._paste_from_clipboard)
-            menu.add_command(label="Копировать", command=self._copy_selection)
-            menu.add_command(label="Вырезать", command=self._cut_selection)
+            menu.add_command(label=t("paste"), command=self._paste_from_clipboard)
+            menu.add_command(label="Copy", command=self._copy_selection)
+            menu.add_command(label="Cut", command=self._cut_selection)
             try:
                 menu.tk_popup(event.x_root, event.y_root)
             finally:
@@ -282,11 +313,11 @@ class CaptureWindow:
         try:
             text = self.root.clipboard_get()
         except tk.TclError:
-            self.status_var.set("Буфер обмена пуст")
+            self.status_var.set(t("clipboard_empty"))
             return
 
         if not text:
-            self.status_var.set("Буфер обмена пуст")
+            self.status_var.set(t("clipboard_empty"))
             return
 
         self._insert_at_cursor(text)
@@ -331,7 +362,7 @@ class CaptureWindow:
 
         def on_done(image: Image.Image) -> None:
             self._paste_image(image, preferred_name=drawing_filename())
-            self.status_var.set("Рисунок добавлен")
+            self.status_var.set(t("drawing_added"))
 
         open_paint(self.root, on_done=on_done)
 
@@ -365,7 +396,7 @@ class CaptureWindow:
         except ImportError:
             messagebox.showerror(
                 "CtrlNote",
-                "Голосовые зависимости не установлены.",
+                t("voice_deps"),
                 parent=self.root,
             )
             return
@@ -376,13 +407,17 @@ class CaptureWindow:
             self._recorder = None
             messagebox.showerror(
                 "CtrlNote",
-                f"Не удалось открыть микрофон:\n{exc}",
+                t("mic_error", exc=exc),
                 parent=self.root,
             )
             return
-        self.mic_btn.configure(text="⏹", fg_color="#b33a3a", hover_color="#992f2f")
+        self.mic_btn.configure(
+            text="■",
+            fg_color="#b33a3a",
+            hover_color="#992f2f",
+        )
         self.redo_voice_btn.configure(state="disabled")
-        self.status_var.set("Запись…")
+        self.status_var.set(t("recording"))
 
     def _stop_voice_and_transcribe(self) -> None:
         """Останавливает запись и запускает расшифровку в фоне."""
@@ -392,14 +427,22 @@ class CaptureWindow:
             audio = self._recorder.stop()
         except Exception as exc:  # noqa: BLE001
             self._recorder = None
-            self.mic_btn.configure(text="🎙", fg_color="transparent", hover_color=("gray75", "gray30"))
-            messagebox.showerror("CtrlNote", f"Ошибка записи:\n{exc}", parent=self.root)
+            self.mic_btn.configure(
+                text="🎙",
+                fg_color="transparent",
+                hover_color="#2f2f2f",
+            )
+            messagebox.showerror("CtrlNote", t("rec_error", exc=exc), parent=self.root)
             return
 
         self._recorder = None
-        self.mic_btn.configure(text="…", state="disabled", fg_color="transparent")
+        self.mic_btn.configure(
+            text="🎙",
+            state="disabled",
+            fg_color="transparent",
+        )
         self._voice_busy = True
-        self.status_var.set("Расшифровка…")
+        self.status_var.set(t("transcribing"))
 
         from voice import RecordingResult, model_likely_cached, transcribe_in_background
         from config import load_config as _load
@@ -408,10 +451,18 @@ class CaptureWindow:
         if cfg.get("voice_engine") != "openai":
             model = str(cfg.get("whisper_model", "small"))
             if not model_likely_cached(model):
-                self.status_var.set("Скачивание модели…")
+                self.status_var.set(t("downloading_model"))
+
+        _progress_map = {
+            "Loading model…": "loading_model",
+            "Downloading model…": "downloading_model",
+            "Transcribing…": "transcribing",
+        }
 
         def on_progress(message: str) -> None:
-            self.root.after(0, lambda m=message: self.status_var.set(m))
+            key = _progress_map.get(message)
+            text = t(key) if key else message
+            self.root.after(0, lambda m=text: self.status_var.set(m))
 
         def on_done(result: RecordingResult) -> None:
             self.root.after(0, lambda: self._on_voice_done(result))
@@ -433,7 +484,7 @@ class CaptureWindow:
             text="🎙",
             state="normal",
             fg_color="transparent",
-            hover_color=("gray75", "gray30"),
+            hover_color="#2f2f2f",
         )
         if result.text:
             prefix = ""
@@ -452,7 +503,7 @@ class CaptureWindow:
             self.redo_voice_btn.configure(state="normal")
             self.status_var.set("")
         else:
-            self.status_var.set("Ничего не распознано")
+            self.status_var.set(t("nothing_recognized"))
             self.redo_voice_btn.configure(state="disabled")
 
     def _on_voice_error(self, exc: BaseException) -> None:
@@ -462,10 +513,10 @@ class CaptureWindow:
             text="🎙",
             state="normal",
             fg_color="transparent",
-            hover_color=("gray75", "gray30"),
+            hover_color="#2f2f2f",
         )
-        self.status_var.set("Ошибка расшифровки")
-        messagebox.showerror("CtrlNote", f"Не удалось расшифровать:\n{exc}", parent=self.root)
+        self.status_var.set("")
+        messagebox.showerror("CtrlNote", t("transcribe_error", exc=exc), parent=self.root)
 
     def _cancel_voice(self) -> None:
         """Прерывает запись при закрытии окна."""
@@ -479,7 +530,7 @@ class CaptureWindow:
             text="🎙",
             state="normal",
             fg_color="transparent",
-            hover_color=("gray75", "gray30"),
+            hover_color="#2f2f2f",
         )
 
     def _center(self) -> None:
@@ -529,10 +580,10 @@ class CaptureWindow:
         self._folder_map.clear()
         for rel in folders:
             if rel == "":
-                label = "(корень vault)"
-            elif rel == "(корень vault)":
+                label = t("vault_root")
+            elif rel == "(vault root)":
                 # Чтобы не спутать с подписью корня vault
-                label = "./(корень vault)"
+                label = t("vault_root_folder")
             else:
                 label = rel
             labels.append(label)
@@ -540,7 +591,7 @@ class CaptureWindow:
 
         self.folder_menu.configure(values=labels)
 
-        selected = "(корень vault)"
+        selected = t("vault_root")
         target = preferred_relative if preferred_relative is not None else config.get("last_folder", "")
         for label, rel in self._folder_map.items():
             if rel == target:
@@ -550,11 +601,23 @@ class CaptureWindow:
 
     def _refresh_templates(self) -> None:
         """Обновляет список шаблонов."""
+        refresh_none_label()
         names = template_names()
         self.template_menu.configure(values=names)
         current = self.template_var.get()
         if current not in names:
             self.template_var.set(NONE_LABEL)
+
+    def _apply_ui_language(self) -> None:
+        """Обновляет видимые подписи после смены языка UI."""
+        self.paste_btn.configure(text=t("paste"))
+        self.templates_btn.configure(text=t("templates"))
+        self.redo_voice_btn.configure(text=t("voice_again"))
+        self.cancel_btn.configure(text=t("cancel"))
+        self.save_btn.configure(text=t("save"))
+        preferred = self._folder_map.get(self.folder_var.get(), "")
+        self._refresh_folders(preferred_relative=preferred)
+        self._refresh_templates()
 
     def _on_template_chosen(self, choice: str) -> None:
         """Подставляет текст выбранного шаблона в поле заметки."""
@@ -567,13 +630,12 @@ class CaptureWindow:
         if existing.strip():
             if not messagebox.askyesno(
                 "CtrlNote",
-                "Заменить текст заметки шаблоном?",
+                t("replace_template"),
                 parent=self.root,
             ):
                 self.template_var.set(NONE_LABEL)
                 return
-        self.text.delete("1.0", "end")
-        self.text.insert("1.0", tmpl["body"])
+        set_widget_markdown(self.text, tmpl["body"])
         self.text.focus_set()
 
     def open_templates_manager(self) -> None:
@@ -584,7 +646,7 @@ class CaptureWindow:
             self.root.deiconify()
 
         dialog = ctk.CTkToplevel(self.root)
-        dialog.title("Шаблоны")
+        dialog.title(t("templates_title"))
         dialog.geometry("520x420")
         dialog.minsize(480, 360)
         dialog.attributes("-topmost", True)
@@ -596,13 +658,13 @@ class CaptureWindow:
         apply_window_icon(dialog)
 
         templates = load_templates()
-        names = [t["name"] for t in templates] or ["(пусто)"]
+        names = [tmpl["name"] for tmpl in templates] or ["(empty)"]
         selected_id = {"value": templates[0]["id"] if templates else ""}
 
         left = ctk.CTkFrame(dialog, fg_color="transparent")
         left.pack(side="left", fill="y", padx=(16, 8), pady=16)
 
-        ctk.CTkLabel(left, text="Список").pack(anchor="w")
+        ctk.CTkLabel(left, text=t("list")).pack(anchor="w")
         list_var = ctk.StringVar(value=names[0])
         name_menu = ctk.CTkOptionMenu(left, variable=list_var, values=names, width=160)
         name_menu.pack(anchor="w", pady=(4, 12))
@@ -610,12 +672,12 @@ class CaptureWindow:
         right = ctk.CTkFrame(dialog, fg_color="transparent")
         right.pack(side="left", fill="both", expand=True, padx=(8, 16), pady=16)
 
-        ctk.CTkLabel(right, text="Название").pack(anchor="w")
+        ctk.CTkLabel(right, text=t("name")).pack(anchor="w")
         name_var = ctk.StringVar(value=templates[0]["name"] if templates else "")
         name_entry = ctk.CTkEntry(right, textvariable=name_var)
         name_entry.pack(fill="x", pady=(4, 8))
 
-        ctk.CTkLabel(right, text="Текст шаблона").pack(anchor="w")
+        ctk.CTkLabel(right, text=t("template_body")).pack(anchor="w")
         body_box = ctk.CTkTextbox(right, wrap="word")
         body_box.pack(fill="both", expand=True, pady=(4, 8))
         if templates:
@@ -635,11 +697,11 @@ class CaptureWindow:
 
         def reload_list(prefer_name: str | None = None) -> None:
             items = current_templates()
-            values = [t["name"] for t in items] or ["(пусто)"]
+            values = [item["name"] for item in items] or ["(empty)"]
             name_menu.configure(values=values)
             pick = prefer_name if prefer_name in values else values[0]
             list_var.set(pick)
-            if items and pick != "(пусто)":
+            if items and pick != "(empty)":
                 select_by_name(pick)
             else:
                 selected_id["value"] = ""
@@ -647,14 +709,14 @@ class CaptureWindow:
                 body_box.delete("1.0", "end")
 
         def on_pick(choice: str) -> None:
-            if choice == "(пусто)":
+            if choice == "(empty)":
                 return
             select_by_name(choice)
 
         name_menu.configure(command=on_pick)
 
         def on_new() -> None:
-            item = add_template("Новый шаблон", "# Заголовок\n\n")
+            item = add_template("New template", "# Title\n\n")
             reload_list(item["name"])
             self._refresh_templates()
 
@@ -663,7 +725,7 @@ class CaptureWindow:
             name = name_var.get().strip()
             body = body_box.get("1.0", "end-1c")
             if not name:
-                messagebox.showwarning("CtrlNote", "Укажите название шаблона", parent=dialog)
+                messagebox.showwarning("CtrlNote", t("enter_template_name"), parent=dialog)
                 return
             if not tid:
                 item = add_template(name, body)
@@ -677,7 +739,7 @@ class CaptureWindow:
             tid = selected_id["value"]
             if not tid:
                 return
-            if not messagebox.askyesno("CtrlNote", "Удалить шаблон?", parent=dialog):
+            if not messagebox.askyesno("CtrlNote", t("delete_template"), parent=dialog):
                 return
             delete_template(tid)
             reload_list()
@@ -685,10 +747,10 @@ class CaptureWindow:
 
         btns = ctk.CTkFrame(left, fg_color="transparent")
         btns.pack(anchor="w", pady=(8, 0))
-        ctk.CTkButton(btns, text="Новый", width=70, command=on_new).pack(pady=4)
-        ctk.CTkButton(btns, text="Сохранить", width=70, command=on_save).pack(pady=4)
-        ctk.CTkButton(btns, text="Удалить", width=70, command=on_delete).pack(pady=4)
-        ctk.CTkButton(btns, text="Закрыть", width=70, command=dialog.destroy).pack(pady=(16, 4))
+        ctk.CTkButton(btns, text=t("new"), width=70, command=on_new).pack(pady=4)
+        ctk.CTkButton(btns, text=t("save"), width=70, command=on_save).pack(pady=4)
+        ctk.CTkButton(btns, text=t("delete"), width=70, command=on_delete).pack(pady=4)
+        ctk.CTkButton(btns, text=t("close"), width=70, command=dialog.destroy).pack(pady=(16, 4))
 
     def show(self) -> None:
         """Показывает окно заметки и подбирает папку по активному окну."""
@@ -718,13 +780,14 @@ class CaptureWindow:
         # Подставим папку из прошлой сессии без сканирования vault (безопасно, если сохранят сразу).
         config = load_config()
         last = str(config.get("last_folder", "") or "")
-        self._folder_map = {"(корень vault)": ""}
-        labels = ["(корень vault)"]
+        root_label = t("vault_root")
+        self._folder_map = {root_label: ""}
+        labels = [root_label]
         if last:
             self._folder_map[last] = last
             labels.append(last)
         self.folder_menu.configure(values=labels)
-        self.folder_var.set(last if last else "(корень vault)")
+        self.folder_var.set(last if last else root_label)
 
         self._show_gen += 1
         gen = self._show_gen
@@ -795,9 +858,9 @@ class CaptureWindow:
 
     def _save(self) -> None:
         """Сохраняет заметку в vault и закрывает окно."""
-        content = self.text.get("1.0", "end").strip()
+        content = widget_to_markdown(self.text).strip()
         if not content and not self._pending_images:
-            self.status_var.set("Пустая заметка — нечего сохранять")
+            self.status_var.set(t("empty_note"))
             return
 
         config = load_config()
@@ -821,13 +884,13 @@ class CaptureWindow:
             from vault_paths import VaultPathError
 
             path = save_note(
-                content or f"Вставка {datetime.now().strftime('%Y-%m-%d %H-%M')}",
+                content or f"Paste {datetime.now().strftime('%Y-%m-%d %H-%M')}",
                 config["vault_path"],
                 relative,
                 attachments=list(self._pending_images),
             )
         except (OSError, VaultPathError, ValueError) as exc:
-            messagebox.showerror("CtrlNote", f"Не удалось сохранить:\n{exc}", parent=self.root)
+            messagebox.showerror("CtrlNote", t("save_error", exc=exc), parent=self.root)
             return
 
         if config.get("append_daily_note"):
@@ -852,7 +915,7 @@ class CaptureWindow:
 
         if self.on_saved:
             self.on_saved(str(path))
-        self.status_var.set(f"Сохранено: {path.name}")
+        self.status_var.set(f"Saved: {path.name}")
         self._pending_images.clear()
         self.hide()
 
@@ -866,9 +929,9 @@ class CaptureWindow:
         from autostart import is_autostart_enabled, set_autostart
 
         dialog = ctk.CTkToplevel(self.root)
-        dialog.title("Настройки CtrlNote")
-        dialog.geometry("500x620")
-        dialog.minsize(460, 520)
+        dialog.title(t("settings_title"))
+        dialog.geometry("500x660")
+        dialog.minsize(460, 560)
         dialog.attributes("-topmost", True)
         dialog.transient(self.root)
         dialog.focus_force()
@@ -890,7 +953,7 @@ class CaptureWindow:
         scroll.pack(fill="both", expand=True, padx=8, pady=(8, 0))
         body = scroll
 
-        ctk.CTkLabel(body, text="Vault Obsidian").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("obsidian_vault")).pack(anchor="w", padx=8)
         vault_row = ctk.CTkFrame(body, fg_color="transparent")
         vault_row.pack(fill="x", padx=8, pady=(4, 12))
         vault_var = ctk.StringVar(value=config.get("vault_path", ""))
@@ -901,31 +964,44 @@ class CaptureWindow:
         def browse() -> None:
             from tkinter import filedialog
 
-            path = filedialog.askdirectory(title="Выберите vault", parent=dialog)
+            path = filedialog.askdirectory(title=t("select_vault"), parent=dialog)
             if path:
                 vault_var.set(path)
 
-        ctk.CTkButton(vault_row, text="Обзор", width=80, command=browse).pack(side="right")
+        ctk.CTkButton(vault_row, text=t("browse"), width=80, command=browse).pack(side="right")
 
-        ctk.CTkLabel(body, text="Горячая клавиша").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("hotkey")).pack(anchor="w", padx=8)
         hotkey_var = ctk.StringVar(value=config.get("hotkey", "ctrl+alt+n"))
         ctk.CTkEntry(body, textvariable=hotkey_var).pack(fill="x", padx=8, pady=(4, 12))
 
         autostart_var = ctk.BooleanVar(value=is_autostart_enabled())
         ctk.CTkCheckBox(
             body,
-            text="Запускать вместе с Windows",
+            text=t("start_windows"),
             variable=autostart_var,
         ).pack(anchor="w", padx=8, pady=(0, 8))
 
         auto_folder_var = ctk.BooleanVar(value=bool(config.get("auto_folder", True)))
         ctk.CTkCheckBox(
             body,
-            text="Автовыбор папки по активному окну",
+            text=t("auto_folder"),
             variable=auto_folder_var,
         ).pack(anchor="w", padx=8, pady=(0, 12))
 
-        ctk.CTkLabel(body, text="Голос").pack(anchor="w", padx=8)
+        ui_lang_labels = {"en": "English", "ru": "Русский"}
+        ui_lang_codes = {"English": "en", "Русский": "ru"}
+        ctk.CTkLabel(body, text=t("ui_language")).pack(anchor="w", padx=8)
+        ui_lang_var = ctk.StringVar(
+            value=ui_lang_labels.get(get_language(), "English")
+        )
+        ctk.CTkOptionMenu(
+            body,
+            variable=ui_lang_var,
+            values=["English", "Русский"],
+            width=160,
+        ).pack(anchor="w", padx=8, pady=(4, 12))
+
+        ctk.CTkLabel(body, text=t("voice")).pack(anchor="w", padx=8)
         engine_var = ctk.StringVar(value=str(config.get("voice_engine", "local")))
         ctk.CTkOptionMenu(
             body,
@@ -934,7 +1010,7 @@ class CaptureWindow:
             width=160,
         ).pack(anchor="w", padx=8, pady=(4, 8))
 
-        ctk.CTkLabel(body, text="Модель Whisper (local)").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("whisper_model")).pack(anchor="w", padx=8)
         model_var = ctk.StringVar(value=str(config.get("whisper_model", "small")))
         ctk.CTkOptionMenu(
             body,
@@ -943,43 +1019,43 @@ class CaptureWindow:
             width=160,
         ).pack(anchor="w", padx=8, pady=(4, 8))
 
-        ctk.CTkLabel(body, text="OpenAI API key (для openai)").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("openai_key")).pack(anchor="w", padx=8)
         api_var = ctk.StringVar(value=str(config.get("openai_api_key", "")))
         ctk.CTkEntry(body, textvariable=api_var, show="*").pack(fill="x", padx=8, pady=(4, 8))
 
         lang_row = ctk.CTkFrame(body, fg_color="transparent")
         lang_row.pack(fill="x", padx=8, pady=(0, 8))
-        ctk.CTkLabel(lang_row, text="Язык").pack(side="left", padx=(0, 8))
-        lang_var = ctk.StringVar(value=str(config.get("voice_language", "ru")))
+        ctk.CTkLabel(lang_row, text=t("voice_language")).pack(side="left", padx=(0, 8))
+        lang_var = ctk.StringVar(value=str(config.get("voice_language", "en")))
         ctk.CTkEntry(lang_row, textvariable=lang_var, width=80).pack(side="left")
 
         save_audio_var = ctk.BooleanVar(value=bool(config.get("save_voice_audio", False)))
         ctk.CTkCheckBox(
             body,
-            text="Сохранять аудио в recordings",
+            text=t("save_audio"),
             variable=save_audio_var,
         ).pack(anchor="w", padx=8, pady=(0, 12))
 
-        ctk.CTkLabel(body, text="Daily note").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("daily_note")).pack(anchor="w", padx=8)
         link_daily_var = ctk.BooleanVar(value=bool(config.get("link_daily_note", False)))
         ctk.CTkCheckBox(
             body,
-            text="Добавлять [[сегодня]] в конец заметки",
+            text=t("link_daily"),
             variable=link_daily_var,
         ).pack(anchor="w", padx=8, pady=(4, 4))
 
         append_daily_var = ctk.BooleanVar(value=bool(config.get("append_daily_note", False)))
         ctk.CTkCheckBox(
             body,
-            text="Писать ссылку в файл дня Obsidian",
+            text=t("append_daily"),
             variable=append_daily_var,
         ).pack(anchor="w", padx=8, pady=(0, 8))
 
-        ctk.CTkLabel(body, text="Папка daily-note (пусто = корень)").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("daily_folder")).pack(anchor="w", padx=8)
         daily_folder_var = ctk.StringVar(value=str(config.get("daily_note_folder", "")))
         ctk.CTkEntry(body, textvariable=daily_folder_var).pack(fill="x", padx=8, pady=(4, 8))
 
-        ctk.CTkLabel(body, text="Формат имени дня").pack(anchor="w", padx=8)
+        ctk.CTkLabel(body, text=t("daily_format")).pack(anchor="w", padx=8)
         daily_fmt_var = ctk.StringVar(value=str(config.get("daily_note_format", "YYYY-MM-DD")))
         ctk.CTkOptionMenu(
             body,
@@ -998,7 +1074,8 @@ class CaptureWindow:
             config["vault_path"] = vault_var.get().strip()
             config["hotkey"] = new_hotkey
             config["whisper_model"] = model_var.get().strip() or "small"
-            config["voice_language"] = lang_var.get().strip() or "ru"
+            config["voice_language"] = lang_var.get().strip() or "en"
+            config["ui_language"] = ui_lang_codes.get(ui_lang_var.get(), "en")
             config["voice_engine"] = engine_var.get().strip() or "local"
             config["openai_api_key"] = api_var.get().strip()
             config["save_voice_audio"] = bool(save_audio_var.get())
@@ -1013,7 +1090,7 @@ class CaptureWindow:
             except OSError as exc:
                 messagebox.showerror(
                     "CtrlNote",
-                    f"Не удалось изменить автозапуск:\n{exc}",
+                    t("autostart_error", exc=exc),
                     parent=dialog,
                 )
                 return
@@ -1026,23 +1103,26 @@ class CaptureWindow:
                 if isinstance(exc, SecretStorageError):
                     messagebox.showerror(
                         "CtrlNote",
-                        f"Не удалось безопасно сохранить API-ключ:\n{exc}",
+                        t("secret_error", exc=exc),
                         parent=dialog,
                     )
                     return
                 messagebox.showerror(
                     "CtrlNote",
-                    f"Не удалось сохранить настройки:\n{exc}",
+                    t("settings_save_error", exc=exc),
                     parent=dialog,
                 )
                 return
+            set_language(str(config["ui_language"]))
+            refresh_none_label()
+            self._apply_ui_language()
             if new_hotkey != old_hotkey and self.on_hotkey_changed:
                 try:
                     self.on_hotkey_changed()
                 except Exception as exc:  # noqa: BLE001
                     messagebox.showerror(
                         "CtrlNote",
-                        f"Не удалось применить горячую клавишу:\n{exc}",
+                        t("hotkey_error", exc=exc),
                         parent=dialog,
                     )
                     return
@@ -1050,10 +1130,10 @@ class CaptureWindow:
             if self._visible:
                 self._refresh_folders()
 
-        ctk.CTkButton(footer, text="Сохранить", width=120, command=save_settings).pack(
+        ctk.CTkButton(footer, text=t("save"), width=120, command=save_settings).pack(
             side="right"
         )
-        ctk.CTkButton(footer, text="Отмена", width=90, command=dialog.destroy).pack(
+        ctk.CTkButton(footer, text=t("cancel"), width=90, command=dialog.destroy).pack(
             side="right", padx=(0, 8)
         )
 

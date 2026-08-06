@@ -121,15 +121,19 @@ def normalize_audio(audio):
 
     if audio.size == 0:
         return audio
+    peak = float(np.max(np.abs(audio)))
+    if peak < 1e-5:
+        return audio.astype(np.float32, copy=False)
+    # Trim relative to this clip's level (absolute 0.01 kills quiet mics).
     energy = np.convolve(np.abs(audio), np.ones(800) / 800, mode="same")
-    mask = energy > 0.01
+    mask = energy > max(peak * 0.08, 1e-4)
     if np.any(mask):
         idx = np.where(mask)[0]
         audio = audio[idx[0] : idx[-1] + 1]
-    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-    if peak < 1e-4:
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+    if peak < 1e-5:
         return audio.astype(np.float32, copy=False)
-    gain = min(0.85 / peak, 12.0)
+    gain = min(0.9 / peak, 80.0)
     return np.clip(audio * gain, -1.0, 1.0).astype(np.float32)
 
 
@@ -150,50 +154,92 @@ def _get_model(model_size: str, on_progress: ProgressCallback | None = None):
         os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
         os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
+        cached = model_likely_cached(model_size)
         if on_progress:
-            if model_likely_cached(model_size):
-                on_progress("Загрузка модели…")
+            if cached:
+                on_progress("Loading model…")
             else:
-                on_progress("Скачивание модели…")
+                on_progress("Downloading model…")
 
         from faster_whisper import WhisperModel
 
-        _model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        # System SOCKS proxies (VPN) break huggingface downloads without PySocks.
+        # Prefer local cache — never hit the network when the model is already there.
+        try:
+            _model = WhisperModel(
+                model_size,
+                device="cpu",
+                compute_type="int8",
+                local_files_only=cached,
+            )
+        except Exception as exc:  # noqa: BLE001
+            err = str(exc)
+            if "SOCKS" in err or "Proxy" in err or "proxy" in err:
+                raise RuntimeError(
+                    "Network proxy blocked Whisper model access. "
+                    "Disable the system SOCKS/VPN proxy for CtrlNote, "
+                    "or install PySocks (pip install PySocks)."
+                ) from exc
+            if cached:
+                # Cache folder present but incomplete — retry online once.
+                if on_progress:
+                    on_progress("Downloading model…")
+                try:
+                    _model = WhisperModel(
+                        model_size, device="cpu", compute_type="int8"
+                    )
+                except Exception as exc2:  # noqa: BLE001
+                    err2 = str(exc2)
+                    if "SOCKS" in err2 or "proxy" in err2.lower():
+                        raise RuntimeError(
+                            "Network proxy blocked Whisper model download. "
+                            "Disable the system SOCKS/VPN proxy temporarily."
+                        ) from exc2
+                    raise
+            else:
+                raise
         _model_name = model_size
         if on_progress:
-            on_progress("Расшифровка…")
+            on_progress("Transcribing…")
         return _model
 
 
 def transcribe_local(
     audio,
-    language: str = "ru",
+    language: str = "en",
     model_size: str = "small",
     on_progress: ProgressCallback | None = None,
 ) -> str:
-    """Расшифровывает речь локально через faster-whisper."""
+    """Transcribe speech locally with faster-whisper."""
     if audio.size == 0:
         return ""
     audio = normalize_audio(audio)
-    if audio.size < SAMPLE_RATE // 4:
+    # ~0.15s minimum — short notes should still work
+    if audio.size < SAMPLE_RATE // 6:
         return ""
 
     model = _get_model(model_size, on_progress=on_progress)
     if on_progress:
-        on_progress("Расшифровка…")
+        on_progress("Transcribing…")
+
+    lang = (language or "").strip().lower()
+    if lang in {"", "auto", "detect"}:
+        lang_arg = None
+    else:
+        lang_arg = lang.split("-")[0]
+
     segments, _info = model.transcribe(
         audio,
-        language=language or None,
+        language=lang_arg,
         task="transcribe",
-        beam_size=5,
-        best_of=5,
-        patience=1.0,
-        vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 400},
+        beam_size=1,
+        best_of=1,
+        vad_filter=False,
         condition_on_previous_text=False,
         without_timestamps=True,
         temperature=0.0,
-        compression_ratio_threshold=2.4,
+        compression_ratio_threshold=2.8,
+        # Higher = keep more segments (0.35 was discarding quiet speech as silence).
         no_speech_threshold=0.6,
     )
     parts = [seg.text.strip() for seg in segments if seg.text and seg.text.strip()]
@@ -204,7 +250,7 @@ def transcribe_local(
 def transcribe_openai(
     audio,
     api_key: str,
-    language: str = "ru",
+    language: str = "en",
     on_progress: ProgressCallback | None = None,
 ) -> str:
     """Отправляет аудио в OpenAI Whisper API и возвращает текст."""
@@ -214,10 +260,10 @@ def transcribe_openai(
     if audio.size < SAMPLE_RATE // 4:
         return ""
     if not api_key.strip():
-        raise ValueError("Не указан OpenAI API key")
+        raise ValueError("OpenAI API key is missing")
 
     if on_progress:
-        on_progress("Отправка в OpenAI…")
+        on_progress("Sending to OpenAI…")
 
     wav_bytes = audio_to_wav_bytes(audio)
     boundary = "----CtrlNoteFormBoundary7MA4YWxkTrZu0gW"
@@ -273,7 +319,7 @@ def process_recording(
     audio,
     *,
     save_audio: bool = True,
-    language: str = "ru",
+    language: str = "en",
     model_size: str = "small",
     engine: str = "local",
     openai_api_key: str = "",
@@ -311,7 +357,7 @@ def transcribe_in_background(
 ) -> None:
     """Запускает расшифровку в фоне, чтобы окно не зависало."""
     config = load_config()
-    language = str(config.get("voice_language", "ru") or "ru")
+    language = str(config.get("voice_language", "en") or "en")
     model_size = str(config.get("whisper_model", "small") or "small")
     save_audio = bool(config.get("save_voice_audio", False))
     engine = str(config.get("voice_engine", "local") or "local")

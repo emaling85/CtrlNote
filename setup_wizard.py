@@ -103,12 +103,12 @@ def _normalize_install_dest(dest: Path) -> Path:
     # Запрещаем слишком короткие пути (например C:\Users)
     if len(dest.parts) < 3:
         raise ValueError(
-            f"Папка установки слишком высоко в дереве диска.\n"
-            f"Выберите путь вроде {DEFAULT_DIR}"
+            f"Install folder is too high in the drive tree.\n"
+            f"Choose a path like {DEFAULT_DIR}"
         )
     forbidden_names = {"windows", "system32", "program files", "program files (x86)"}
     if any(p.lower() in forbidden_names for p in dest.parts):
-        raise ValueError("Нельзя устанавливать в системные папки Windows")
+        raise ValueError("Cannot install into Windows system folders")
     return dest
 
 
@@ -128,7 +128,7 @@ def install(
         if progress:
             progress(msg)
 
-    report("Распаковка…")
+    report("Extracting…")
     if dest.exists():
         # Сохраняем старый config.json при переустановке
         cfg = dest / "config.json"
@@ -175,7 +175,7 @@ def install(
     if not icon.exists():
         icon = exe
 
-    report("Ярлыки…")
+    report("Shortcuts…")
     if start_menu:
         sm = (
             Path(os.environ["APPDATA"])
@@ -193,7 +193,7 @@ def install(
         _create_shortcut(desk, exe, dest, icon if icon.suffix == ".ico" else None)
 
     if autostart:
-        report("Автозапуск…")
+        report("Autostart…")
         try:
             # Сначала ставим программу на место, потом включаем автозапуск
             sys.path.insert(0, str(dest))
@@ -216,7 +216,7 @@ def install(
         except OSError:
             pass
 
-    report("Готово")
+    report("Done")
     return exe
 
 
@@ -226,7 +226,7 @@ def main() -> int:
     from tkinter import filedialog, messagebox, ttk
 
     root = tk.Tk()
-    root.title("Установка CtrlNote")
+    root.title("CtrlNote Setup")
     root.geometry("460x320")
     root.resizable(False, False)
 
@@ -234,7 +234,7 @@ def main() -> int:
     desktop_var = tk.BooleanVar(value=True)
     start_var = tk.BooleanVar(value=True)
     auto_var = tk.BooleanVar(value=True)
-    status_var = tk.StringVar(value="Установит CtrlNote и создаст ярлыки.")
+    status_var = tk.StringVar(value="Installs CtrlNote and creates shortcuts.")
 
     try:
         # Иконка окна, если есть рядом с setup
@@ -250,11 +250,11 @@ def main() -> int:
     frm.pack(fill="both", expand=True)
 
     ttk.Label(frm, text="CtrlNote Setup", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-    ttk.Label(frm, text="Быстрые заметки в Obsidian", foreground="#555").pack(anchor="w", pady=(0, 12))
+    ttk.Label(frm, text="Fast notes into Obsidian", foreground="#555").pack(anchor="w", pady=(0, 12))
 
     path_row = ttk.Frame(frm)
     path_row.pack(fill="x", pady=(0, 8))
-    ttk.Label(path_row, text="Папка:").pack(side="left")
+    ttk.Label(path_row, text="Folder:").pack(side="left")
     ttk.Entry(path_row, textvariable=dest_var).pack(side="left", fill="x", expand=True, padx=6)
 
     def browse() -> None:
@@ -262,11 +262,11 @@ def main() -> int:
         if chosen:
             dest_var.set(str(Path(chosen) / APP_NAME))
 
-    ttk.Button(path_row, text="Обзор", command=browse, width=8).pack(side="right")
+    ttk.Button(path_row, text="Browse", command=browse, width=8).pack(side="right")
 
-    ttk.Checkbutton(frm, text="Ярлык на рабочем столе", variable=desktop_var).pack(anchor="w")
-    ttk.Checkbutton(frm, text="Ярлык в меню Пуск", variable=start_var).pack(anchor="w")
-    ttk.Checkbutton(frm, text="Запускать вместе с Windows", variable=auto_var).pack(anchor="w")
+    ttk.Checkbutton(frm, text="Desktop shortcut", variable=desktop_var).pack(anchor="w")
+    ttk.Checkbutton(frm, text="Start menu shortcut", variable=start_var).pack(anchor="w")
+    ttk.Checkbutton(frm, text="Start with Windows", variable=auto_var).pack(anchor="w")
 
     ttk.Label(frm, textvariable=status_var, foreground="#333").pack(anchor="w", pady=(16, 8))
 
@@ -277,10 +277,10 @@ def main() -> int:
         """Запускает установку по нажатию кнопки."""
         dest = Path(dest_var.get().strip())
         if not dest_var.get().strip():
-            messagebox.showwarning("CtrlNote", "Укажите папку установки")
+            messagebox.showwarning("CtrlNote", "Choose an install folder")
             return
         try:
-            status_var.set("Закройте CtrlNote, если он запущен…")
+            status_var.set("Close CtrlNote if it is running…")
             root.update_idletasks()
             exe = install(
                 dest,
@@ -290,16 +290,16 @@ def main() -> int:
                 progress=lambda m: (status_var.set(m), root.update_idletasks()),
             )
         except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("CtrlNote", f"Ошибка установки:\n{exc}")
-            status_var.set("Ошибка")
+            messagebox.showerror("CtrlNote", f"Install failed:\n{exc}")
+            status_var.set("Error")
             return
 
-        if messagebox.askyesno("CtrlNote", "Установка завершена.\nЗапустить сейчас?"):
+        if messagebox.askyesno("CtrlNote", "Installation complete.\nLaunch now?"):
             os.startfile(str(exe))  # noqa: S606
         root.destroy()
 
-    ttk.Button(btns, text="Выход", command=root.destroy).pack(side="right")
-    ttk.Button(btns, text="Установить", command=do_install).pack(side="right", padx=(0, 8))
+    ttk.Button(btns, text="Exit", command=root.destroy).pack(side="right")
+    ttk.Button(btns, text="Install", command=do_install).pack(side="right", padx=(0, 8))
 
     root.mainloop()
     return 0

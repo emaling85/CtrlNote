@@ -3,21 +3,20 @@
   Лендинг CtrlNote: страница «о программе» для сайта/документации.
   Ниже — разметка и стили; логики приложения здесь нет.
 -->
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CtrlNote — быстрые заметки в Obsidian</title>
-  <meta name="description" content="Ctrl+Alt+N → заметка в vault. Трей Windows, голос, картинки, рисунок. Для Obsidian." />
+  <title>CtrlNote — fast notes into Obsidian</title>
+  <meta name="description" content="Ctrl+Alt+N → note in your Obsidian vault. Windows tray app with EN/RU UI, voice, drawing, and images." />
   <meta property="og:title" content="CtrlNote" />
-  <meta property="og:description" content="Быстрые заметки в Obsidian по горячей клавише" />
+  <meta property="og:description" content="Fast Obsidian notes from a global hotkey — text, voice, draw, paste." />
   <meta property="og:type" content="website" />
   <link rel="icon" href="icon.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <style>
-    /* Цвета и оформление страницы */
     :root {
       --bg0: #0c1220;
       --bg1: #152038;
@@ -44,7 +43,6 @@
       margin: 0 auto;
       padding: 4.5rem 1.5rem 5rem;
     }
-    /* Блок с логотипом и названием */
     .brand {
       display: flex;
       align-items: center;
@@ -68,12 +66,11 @@
     .lead {
       font-size: clamp(1.15rem, 3.5vw, 1.45rem);
       color: var(--muted);
-      max-width: 28ch;
+      max-width: 32ch;
       margin-bottom: 1.75rem;
       animation: rise 0.7s 0.08s ease both;
     }
     .lead strong { color: var(--text); font-weight: 700; }
-    /* Кнопки действий (скачать и т.п.) */
     .cta {
       display: flex;
       flex-wrap: wrap;
@@ -132,6 +129,20 @@
       font-variant-numeric: tabular-nums;
     }
     .steps span { color: var(--text); }
+    .features {
+      margin-top: 2.25rem;
+      display: grid;
+      gap: 0.65rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .features li { list-style: none; padding-left: 0; color: var(--text); }
+    .features li::before {
+      content: "·";
+      color: var(--blue);
+      font-weight: 700;
+      margin-right: 0.55rem;
+    }
     .note {
       margin-top: 2.5rem;
       font-size: 0.9rem;
@@ -154,25 +165,30 @@
       <h1>CtrlNote</h1>
     </div>
     <p class="lead">
-      Нажал <strong>Ctrl+Alt+N</strong> — написал, нарисовал или наговорил —
-      заметка уже в Obsidian.
+      Press <strong>Ctrl+Alt+N</strong> — write, draw, paste, or speak —
+      the note is already in Obsidian.
     </p>
     <div class="cta">
-      <a class="btn btn-primary" id="download" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe">Скачать для Windows</a>
-      <a class="btn btn-ghost" href="https://obsidian.md" rel="noopener">Для Obsidian</a>
+      <a class="btn btn-primary" id="download" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe">Download for Windows</a>
+      <a class="btn btn-ghost" href="https://github.com/emaling85/CtrlNote" rel="noopener">GitHub</a>
     </div>
     <section class="flow" aria-labelledby="how">
-      <h2 id="how">Как это работает</h2>
+      <h2 id="how">How it works</h2>
       <ol class="steps">
-        <li><b>1</b><span>Укажи папку vault при первом запуске</span></li>
-        <li><b>2</b><span>Жми Ctrl+Alt+N из любого окна</span></li>
-        <li><b>3</b><span>Текст, картинка из буфера, голос или рисунок ✎</span></li>
-        <li><b>4</b><span>Файл .md сразу в нужной папке vault</span></li>
+        <li><b>1</b><span>Pick your Obsidian vault on first launch</span></li>
+        <li><b>2</b><span>Press Ctrl+Alt+N from any app</span></li>
+        <li><b>3</b><span>Type, paste a screenshot, draw, or dictate</span></li>
+        <li><b>4</b><span>A .md file lands in the right vault folder</span></li>
       </ol>
+      <ul class="features">
+        <li>English / Russian UI — switch in Settings</li>
+        <li>Bold &amp; italic as you type (Ctrl+B / Ctrl+I)</li>
+        <li>Local Whisper or OpenAI voice, language separate from UI</li>
+        <li>Drawing tool and clipboard images → PNG attachments</li>
+      </ul>
       <p class="note">
-        Бесплатно для личного использования.
-        Вопросы — <a href="mailto:">напиши автору</a>
-        (подставь свой контакт перед публикацией).
+        Free for personal use ·
+        <a href="https://github.com/emaling85/CtrlNote/releases">All releases</a>
       </p>
     </section>
   </main>
