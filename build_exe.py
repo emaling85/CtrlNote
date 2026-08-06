@@ -52,6 +52,14 @@ def main() -> int:
         "tokenizers",
         "--hidden-import",
         "huggingface_hub",
+        "--hidden-import",
+        "paint_window",
+        "--hidden-import",
+        "markdown_edit",
+        "--hidden-import",
+        "onboarding",
+        "--hidden-import",
+        "ui_icon",
         str(ROOT / "main.py"),
     ]
     print("Running:", " ".join(cmd))

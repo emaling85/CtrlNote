@@ -34,7 +34,7 @@ class CaptureWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
 
         ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        ctk.set_default_color_theme("dark-blue")
 
         self.folder_var = ctk.StringVar(value="(корень vault)")
         self.template_var = ctk.StringVar(value=NONE_LABEL)
@@ -61,98 +61,117 @@ class CaptureWindow:
         self.root.withdraw()
 
     def _build_ui(self) -> None:
-        header = ctk.CTkFrame(self.root, fg_color="transparent")
-        header.pack(fill="x", padx=16, pady=(16, 8))
+        # Quiet dark chrome
+        self.root.configure(fg_color="#1a1a1a")
 
-        ctk.CTkLabel(
-            header,
-            text="Быстрая заметка",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")
+        top = ctk.CTkFrame(self.root, fg_color="transparent")
+        top.pack(fill="x", padx=14, pady=(12, 6))
 
-        ctk.CTkButton(
-            header,
-            text="⚙",
-            width=36,
-            command=self.open_settings,
-            fg_color="transparent",
-            hover_color=("gray75", "gray30"),
-        ).pack(side="right")
-
-        self.mic_btn = ctk.CTkButton(
-            header,
-            text="🎙",
-            width=36,
-            command=self._toggle_voice,
-            fg_color="transparent",
-            hover_color=("gray75", "gray30"),
-        )
-        self.mic_btn.pack(side="right", padx=(0, 4))
-
-        folder_row = ctk.CTkFrame(self.root, fg_color="transparent")
-        folder_row.pack(fill="x", padx=16, pady=(0, 4))
-
-        ctk.CTkLabel(folder_row, text="Папка:").pack(side="left", padx=(0, 8))
         self.folder_menu = ctk.CTkOptionMenu(
-            folder_row,
+            top,
             variable=self.folder_var,
             values=["(корень vault)"],
-            width=280,
+            width=220,
+            height=28,
+            fg_color="#2a2a2a",
+            button_color="#333333",
+            button_hover_color="#3a3a3a",
         )
         self.folder_menu.pack(side="left", fill="x", expand=True)
 
-        template_row = ctk.CTkFrame(self.root, fg_color="transparent")
-        template_row.pack(fill="x", padx=16, pady=(0, 8))
+        icon_kwargs = {
+            "width": 32,
+            "height": 28,
+            "fg_color": "transparent",
+            "hover_color": "#2f2f2f",
+            "text_color": "#c8c8c8",
+        }
+        ctk.CTkButton(top, text="⚙", command=self.open_settings, **icon_kwargs).pack(
+            side="right", padx=(4, 0)
+        )
+        self.paint_btn = ctk.CTkButton(top, text="✎", command=self.open_paint, **icon_kwargs)
+        self.paint_btn.pack(side="right", padx=(4, 0))
+        self.mic_btn = ctk.CTkButton(top, text="🎙", command=self._toggle_voice, **icon_kwargs)
+        self.mic_btn.pack(side="right", padx=(4, 0))
 
-        ctk.CTkLabel(template_row, text="Шаблон:").pack(side="left", padx=(0, 8))
+        mid = ctk.CTkFrame(self.root, fg_color="transparent")
+        mid.pack(fill="x", padx=14, pady=(0, 6))
         self.template_menu = ctk.CTkOptionMenu(
-            template_row,
+            mid,
             variable=self.template_var,
             values=template_names(),
-            width=200,
+            width=180,
+            height=28,
             command=self._on_template_chosen,
+            fg_color="#2a2a2a",
+            button_color="#333333",
+            button_hover_color="#3a3a3a",
         )
         self.template_menu.pack(side="left")
 
-        self.text = ctk.CTkTextbox(self.root, font=ctk.CTkFont(size=14), wrap="word")
-        self.text.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+        self.text = ctk.CTkTextbox(
+            self.root,
+            font=ctk.CTkFont(size=14),
+            wrap="word",
+            fg_color="#141414",
+            border_color="#2a2a2a",
+            border_width=1,
+        )
+        self.text.pack(fill="both", expand=True, padx=14, pady=(0, 8))
 
         footer = ctk.CTkFrame(self.root, fg_color="transparent")
-        footer.pack(fill="x", padx=16, pady=(0, 8))
+        footer.pack(fill="x", padx=14, pady=(0, 6))
 
-        ctk.CTkButton(footer, text="Вставить", width=100, command=self._paste_from_clipboard).pack(
+        ghost = {
+            "width": 72,
+            "height": 30,
+            "fg_color": "transparent",
+            "hover_color": "#2f2f2f",
+            "text_color": "#aaaaaa",
+            "border_width": 0,
+        }
+        ctk.CTkButton(footer, text="Вставить", command=self._paste_from_clipboard, **ghost).pack(
             side="left"
         )
-        ctk.CTkButton(footer, text="Шаблоны", width=90, command=self.open_templates_manager).pack(
-            side="left", padx=(8, 0)
+        ctk.CTkButton(footer, text="Шаблоны", command=self.open_templates_manager, **ghost).pack(
+            side="left", padx=(4, 0)
         )
         self.redo_voice_btn = ctk.CTkButton(
             footer,
             text="↻ Голос",
-            width=90,
             command=self._redo_voice,
             state="disabled",
+            **ghost,
         )
-        self.redo_voice_btn.pack(side="left", padx=(8, 0))
-        ctk.CTkButton(footer, text="Отмена", width=90, command=self.hide).pack(side="right")
-        ctk.CTkButton(footer, text="Сохранить", width=110, command=self._save).pack(
-            side="right", padx=(0, 8)
-        )
+        self.redo_voice_btn.pack(side="left", padx=(4, 0))
+
+        ctk.CTkButton(
+            footer,
+            text="Отмена",
+            width=80,
+            height=30,
+            fg_color="transparent",
+            hover_color="#2f2f2f",
+            text_color="#888888",
+            command=self.hide,
+        ).pack(side="right")
+        ctk.CTkButton(
+            footer,
+            text="Сохранить",
+            width=110,
+            height=30,
+            fg_color="#3878fa",
+            hover_color="#2f66d8",
+            command=self._save,
+        ).pack(side="right", padx=(0, 6))
 
         ctk.CTkLabel(
             self.root,
             textvariable=self.status_var,
-            text_color="gray60",
+            text_color="#666666",
             font=ctk.CTkFont(size=11),
             anchor="w",
-        ).pack(fill="x", padx=16, pady=(0, 4))
-        ctk.CTkLabel(
-            self.root,
-            text="Ctrl+B жирный · Ctrl+I курсив · Enter — следующий пункт списка · Ctrl+Enter сохранить",
-            text_color="gray45",
-            font=ctk.CTkFont(size=10),
-            anchor="w",
-        ).pack(fill="x", padx=16, pady=(0, 10))
+        ).pack(fill="x", padx=14, pady=(0, 10))
 
     def _bind_paste_shortcuts(self) -> None:
         """Bind Ctrl+V / Shift+Insert / right-click paste on the real tk Text widget."""
@@ -278,6 +297,20 @@ class CaptureWindow:
             prefix = "\n"
         self._insert_at_cursor(f"{prefix}{markdown}\n")
         self.status_var.set("")
+
+    def open_paint(self) -> None:
+        """Open paint dialog and append drawing as an Obsidian image embed."""
+        if self.root.state() == "withdrawn":
+            self.root.deiconify()
+            self.root.lift()
+
+        from paint_window import drawing_filename, open_paint
+
+        def on_done(image: Image.Image) -> None:
+            self._paste_image(image, preferred_name=drawing_filename())
+            self.status_var.set("Рисунок добавлен")
+
+        open_paint(self.root, on_done=on_done)
 
     def _toggle_voice(self) -> None:
         if self._voice_busy:

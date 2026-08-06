@@ -1,9 +1,15 @@
 Copyright (c) 2026 emaling85 / CtrlNote contributors.
 
-All rights reserved.
+CtrlNote source code is proprietary. You may not copy, modify, publish,
+or redistribute the source without written permission from the copyright holders.
 
-This software and its source code are proprietary and confidential.
-No permission is granted to copy, modify, distribute, sublicense, or use
-this software except as expressly allowed in writing by the copyright holders.
+Binary / installer (CtrlNote-Setup.exe, CtrlNote.exe, Android APK builds
+distributed by the copyright holders):
+  You may download and use them for personal, non-commercial purposes.
+  You may share the official installer/APK with friends for their personal use.
+  You may not sell, rebrand, reverse-engineer for competing products, or
+  redistribute modified builds as if they were official.
 
-Unauthorized use, copying, or distribution is prohibited.
+Commercial use or redistribution beyond personal sharing requires written permission.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

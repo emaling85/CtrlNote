@@ -10,6 +10,13 @@ dist/
 build/
 *.spec
 !CtrlNote.spec
+android/.gradle/
+android/**/build/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+.idea/
 .pytest_cache/
 .env
 *.log

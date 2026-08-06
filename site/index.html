@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CtrlNote — быстрые заметки в Obsidian</title>
+  <meta name="description" content="Ctrl+Alt+N → заметка в vault. Трей Windows, голос, картинки, рисунок. Для Obsidian." />
+  <meta property="og:title" content="CtrlNote" />
+  <meta property="og:description" content="Быстрые заметки в Obsidian по горячей клавише" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="icon.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #0c1220;
+      --bg1: #152038;
+      --blue: #3878fa;
+      --blue-dim: #2a5fd4;
+      --text: #e8eefc;
+      --muted: #9aabc8;
+      --line: rgba(232, 238, 252, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 80% 60% at 70% -10%, rgba(56, 120, 250, 0.35), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 10% 80%, rgba(56, 120, 250, 0.12), transparent 50%),
+        linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #0a101c);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 4.5rem 1.5rem 5rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 2.25rem;
+      animation: rise 0.7s ease both;
+    }
+    .brand img {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(56, 120, 250, 0.35);
+    }
+    .brand h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(2.4rem, 8vw, 3.4rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .lead {
+      font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+      color: var(--muted);
+      max-width: 28ch;
+      margin-bottom: 1.75rem;
+      animation: rise 0.7s 0.08s ease both;
+    }
+    .lead strong { color: var(--text); font-weight: 700; }
+    .cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 3.5rem;
+      animation: rise 0.7s 0.16s ease both;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 1.35rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-dim); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:hover { border-color: rgba(232, 238, 252, 0.35); }
+    .flow {
+      border-top: 1px solid var(--line);
+      padding-top: 2.5rem;
+      animation: rise 0.7s 0.24s ease both;
+    }
+    .flow h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.75rem;
+      font-weight: 400;
+      margin-bottom: 1rem;
+    }
+    .steps {
+      list-style: none;
+      display: grid;
+      gap: 0.85rem;
+      color: var(--muted);
+    }
+    .steps li {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.65rem;
+      align-items: start;
+    }
+    .steps b {
+      color: var(--blue);
+      font-variant-numeric: tabular-nums;
+    }
+    .steps span { color: var(--text); }
+    .note {
+      margin-top: 2.5rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .note a { color: var(--blue); }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand">
+      <img src="icon.png" width="56" height="56" alt="" />
+      <h1>CtrlNote</h1>
+    </div>
+    <p class="lead">
+      Нажал <strong>Ctrl+Alt+N</strong> — написал, нарисовал или наговорил —
+      заметка уже в Obsidian.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" id="download" href="https://github.com/emaling85/CtrlNote/releases/download/v1.1.0/CtrlNote-Setup.exe">Скачать для Windows</a>
+      <a class="btn btn-ghost" href="https://obsidian.md" rel="noopener">Для Obsidian</a>
+    </div>
+    <section class="flow" aria-labelledby="how">
+      <h2 id="how">Как это работает</h2>
+      <ol class="steps">
+        <li><b>1</b><span>Укажи папку vault при первом запуске</span></li>
+        <li><b>2</b><span>Жми Ctrl+Alt+N из любого окна</span></li>
+        <li><b>3</b><span>Текст, картинка из буфера, голос или рисунок ✎</span></li>
+        <li><b>4</b><span>Файл .md сразу в нужной папке vault</span></li>
+      </ol>
+      <p class="note">
+        Бесплатно для личного использования.
+        Вопросы — <a href="mailto:">напиши автору</a>
+        (подставь свой контакт перед публикацией).
+      </p>
+    </section>
+  </main>
+</body>
+</html>
