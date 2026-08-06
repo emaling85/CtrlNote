@@ -289,7 +289,7 @@ def transcribe_in_background(
     config = load_config()
     language = str(config.get("voice_language", "ru") or "ru")
     model_size = str(config.get("whisper_model", "small") or "small")
-    save_audio = bool(config.get("save_voice_audio", True))
+    save_audio = bool(config.get("save_voice_audio", False))
     engine = str(config.get("voice_engine", "local") or "local")
     api_key = str(config.get("openai_api_key", "") or "")
 

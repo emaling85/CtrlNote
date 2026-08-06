@@ -65,10 +65,16 @@ object NoteWriter {
     }
 
     private fun uniqueName(dir: DocumentFile, filename: String): String {
-        if (dir.findFile(filename) == null) return filename
-        val dot = filename.lastIndexOf('.')
-        val stem = if (dot > 0) filename.substring(0, dot) else filename
-        val ext = if (dot > 0) filename.substring(dot) else ""
+        val safe = filename
+            .replace('\\', '/')
+            .substringAfterLast('/')
+            .replace(Regex("[\\\\/:*?\"<>|]"), "")
+            .trim()
+            .ifEmpty { "note" }
+        if (dir.findFile(safe) == null) return safe
+        val dot = safe.lastIndexOf('.')
+        val stem = if (dot > 0) safe.substring(0, dot) else safe
+        val ext = if (dot > 0) safe.substring(dot) else ""
         var i = 2
         while (true) {
             val candidate = "$stem ($i)$ext"

@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('C:\\проекты\\CtrlNote\\assets', 'assets')]
 binaries = []
-hiddenimports = ['pystray._win32', 'PIL._tkinter_finder', 'sounddevice', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'paint_window', 'markdown_edit', 'onboarding', 'ui_icon']
+hiddenimports = ['pystray._win32', 'PIL._tkinter_finder', 'sounddevice', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'paint_window', 'markdown_edit', 'onboarding', 'ui_icon', 'vault_paths']
 hiddenimports += collect_submodules('ctranslate2')
 tmp_ret = collect_all('customtkinter')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]

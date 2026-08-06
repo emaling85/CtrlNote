@@ -8,7 +8,7 @@
   "whisper_model": "small",
   "voice_engine": "local",
   "openai_api_key": "",
-  "save_voice_audio": true,
+  "save_voice_audio": false,
   "link_daily_note": false,
   "append_daily_note": false,
   "daily_note_folder": "",

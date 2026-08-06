@@ -60,6 +60,8 @@ def main() -> int:
         "onboarding",
         "--hidden-import",
         "ui_icon",
+        "--hidden-import",
+        "vault_paths",
         str(ROOT / "main.py"),
     ]
     print("Running:", " ".join(cmd))

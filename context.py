@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from note_saver import list_vault_folders, sanitize_filename
+from vault_paths import VaultPathError, resolve_under_vault
 
 _EDITOR_SUFFIXES = (
     " - Cursor",
@@ -241,7 +242,7 @@ def resolve_folder(
     if not name:
         return None
 
-    vault = Path(vault_path).expanduser()
+    vault = Path(vault_path).expanduser().resolve()
     if not vault.is_dir():
         return None
 
@@ -254,9 +255,12 @@ def resolve_folder(
         return name  # caller may create later
 
     folder_name = sanitize_filename(name, max_length=60)
-    if not folder_name:
+    if not folder_name or folder_name in {".", ".."} or ".." in Path(folder_name).parts:
         return None
-    target = vault / folder_name
+    try:
+        target = resolve_under_vault(vault, folder_name)
+    except VaultPathError:
+        return None
     target.mkdir(parents=True, exist_ok=True)
     return folder_name.replace("\\", "/")
 

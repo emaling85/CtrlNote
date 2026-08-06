@@ -861,7 +861,7 @@ class CaptureWindow:
         lang_var = ctk.StringVar(value=str(config.get("voice_language", "ru")))
         ctk.CTkEntry(lang_row, textvariable=lang_var, width=80).pack(side="left")
 
-        save_audio_var = ctk.BooleanVar(value=bool(config.get("save_voice_audio", True)))
+        save_audio_var = ctk.BooleanVar(value=bool(config.get("save_voice_audio", False)))
         ctk.CTkCheckBox(
             body,
             text="Сохранять аудио в recordings",

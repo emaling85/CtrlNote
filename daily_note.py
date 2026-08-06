@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from vault_paths import VaultPathError, resolve_under_vault
+
 
 def daily_note_name(fmt: str = "YYYY-MM-DD", now: datetime | None = None) -> str:
     stamp = now or datetime.now()
@@ -39,12 +41,15 @@ def append_to_daily_file(
     now: datetime | None = None,
 ) -> Path | None:
     """Append a bullet about the capture into today's daily note (create if missing)."""
-    vault = Path(vault_path).expanduser()
+    vault = Path(vault_path).expanduser().resolve()
     if not vault.is_dir():
         return None
 
     name = daily_note_name(fmt, now)
-    target_dir = vault if not folder else vault / folder
+    try:
+        target_dir = resolve_under_vault(vault, folder) if folder else vault
+    except VaultPathError:
+        return None
     target_dir.mkdir(parents=True, exist_ok=True)
     path = target_dir / f"{name}.md"
 

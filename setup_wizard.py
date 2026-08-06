@@ -14,6 +14,29 @@ APP_NAME = "CtrlNote"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
 
 
+def _safe_extractall(zf: zipfile.ZipFile, dest: Path) -> None:
+    """Extract zip members only if each resolves inside dest (blocks Zip Slip)."""
+    dest = dest.resolve()
+    for info in zf.infolist():
+        name = info.filename
+        if not name or name.endswith("/"):
+            # Directory entries — still validate
+            rel = name.rstrip("/")
+            if not rel:
+                continue
+        else:
+            rel = name
+        member = Path(rel)
+        if member.is_absolute() or ".." in member.parts:
+            raise ValueError(f"Unsafe zip member rejected: {name!r}")
+        target = (dest / member).resolve()
+        try:
+            target.relative_to(dest)
+        except ValueError as exc:
+            raise ValueError(f"Zip member escapes install dir: {name!r}") from exc
+    zf.extractall(dest)
+
+
 def _payload_zip() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "app.zip"  # type: ignore[attr-defined]
@@ -86,18 +109,25 @@ def install(
         cfg = dest / "config.json"
         cfg_backup = None
         if cfg.exists():
-            cfg_backup = Path(tempfile.gettempdir()) / "ctrlnote-config-backup.json"
+            # Random TEMP name (not a fixed backup filename)
+            _fd, _tmp_name = tempfile.mkstemp(prefix="ctrlnote-cfg-", suffix=".json")
+            os.close(_fd)
+            cfg_backup = Path(_tmp_name)
             shutil.copy2(cfg, cfg_backup)
         shutil.rmtree(dest, ignore_errors=True)
         dest.mkdir(parents=True, exist_ok=True)
         if cfg_backup and cfg_backup.exists():
             shutil.copy2(cfg_backup, dest / "config.json")
+            try:
+                cfg_backup.write_bytes(b"\x00" * cfg_backup.stat().st_size)
+            except OSError:
+                pass
             cfg_backup.unlink(missing_ok=True)
     else:
         dest.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(zpath, "r") as zf:
-        zf.extractall(dest)
+        _safe_extractall(zf, dest)
 
     exe = dest / "CtrlNote.exe"
     if not exe.exists():
