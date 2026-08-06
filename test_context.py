@@ -1,4 +1,6 @@
-"""Tests for active-window → vault folder matching / creation."""
+"""
+Автотесты угадывания папки по заголовку активного окна.
+"""
 
 from __future__ import annotations
 

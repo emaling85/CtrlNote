@@ -1,4 +1,21 @@
 {
+  "_пояснение": "Пример настроек. Скопируйте в config.json и при необходимости удалите поля с _пояснение. Программа читает только известные ключи ниже.",
+  "_поля": {
+    "vault_path": "Путь к папке vault Obsidian",
+    "hotkey": "Глобальная горячая клавиша (например ctrl+alt+n)",
+    "last_folder": "Последняя выбранная подпапка внутри vault (пусто = корень)",
+    "autostart": "Запускать ли CtrlNote вместе с Windows",
+    "auto_folder": "Подставлять папку по заголовку активного окна",
+    "voice_language": "Язык распознавания речи (ru, en, …)",
+    "whisper_model": "Размер локальной модели: tiny | base | small | medium",
+    "voice_engine": "local = на компьютере, openai = через интернет",
+    "openai_api_key": "Ключ OpenAI (в настоящем config.json шифруется)",
+    "save_voice_audio": "Сохранять ли wav-записи голоса на диск",
+    "link_daily_note": "Добавлять [[сегодня]] в конец заметки",
+    "append_daily_note": "Писать ссылку в файл ежедневной заметки",
+    "daily_note_folder": "Папка для daily notes (пусто = корень vault)",
+    "daily_note_format": "Формат имени файла дня"
+  },
   "vault_path": "C:/Users/You/Documents/ObsidianVault",
   "hotkey": "ctrl+alt+n",
   "last_folder": "",

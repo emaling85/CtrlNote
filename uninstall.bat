@@ -1,4 +1,5 @@
 @echo off
+REM Удаляет установленный CtrlNote, ярлыки и автозапуск.
 chcp 65001 >nul
 setlocal
 set "DEST=%LOCALAPPDATA%\CtrlNote"

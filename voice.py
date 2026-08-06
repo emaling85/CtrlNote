@@ -1,4 +1,8 @@
-"""Microphone recording and Whisper transcription (local + OpenAI)."""
+"""
+Запись с микрофона и расшифровка речи (Whisper).
+
+Два режима: локально на компьютере или через OpenAI в интернете.
+"""
 
 from __future__ import annotations
 
@@ -13,13 +17,13 @@ from pathlib import Path
 from typing import Callable
 from urllib import error, request
 
-import numpy as np
-
 from config import APP_DIR, load_config
 
+# Частота и каналы записи — как ожидает Whisper
 SAMPLE_RATE = 16_000
 CHANNELS = 1
 
+# Кэш загруженной модели Whisper (одна на процесс)
 _model_lock = threading.Lock()
 _model = None
 _model_name: str | None = None
@@ -29,19 +33,22 @@ ProgressCallback = Callable[[str], None]
 
 @dataclass
 class RecordingResult:
+    """Результат: распознанный текст и (опционально) путь к wav."""
+
     text: str
     wav_path: Path | None
 
 
 class MicRecorder:
-    """Record mono float32 audio from the default input device."""
+    """Записывает звук с микрофона по умолчанию (моно)."""
 
     def __init__(self) -> None:
-        self._frames: list[np.ndarray] = []
+        self._frames: list = []
         self._stream = None
         self.recording = False
 
     def start(self) -> None:
+        """Начинает запись в фоне."""
         import sounddevice as sd
 
         if self.recording:
@@ -61,7 +68,10 @@ class MicRecorder:
         )
         self._stream.start()
 
-    def stop(self) -> np.ndarray:
+    def stop(self):
+        """Останавливает запись и возвращает массив сэмплов."""
+        import numpy as np
+
         self.recording = False
         if self._stream is not None:
             self._stream.stop()
@@ -75,7 +85,10 @@ class MicRecorder:
         return audio.astype(np.float32, copy=False)
 
 
-def save_wav(audio: np.ndarray, path: Path, sample_rate: int = SAMPLE_RATE) -> Path:
+def save_wav(audio, path: Path, sample_rate: int = SAMPLE_RATE) -> Path:
+    """Сохраняет запись в WAV-файл на диск."""
+    import numpy as np
+
     path.parent.mkdir(parents=True, exist_ok=True)
     clipped = np.clip(audio, -1.0, 1.0)
     pcm = (clipped * 32767.0).astype(np.int16)
@@ -87,7 +100,10 @@ def save_wav(audio: np.ndarray, path: Path, sample_rate: int = SAMPLE_RATE) -> P
     return path
 
 
-def audio_to_wav_bytes(audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> bytes:
+def audio_to_wav_bytes(audio, sample_rate: int = SAMPLE_RATE) -> bytes:
+    """Готовит WAV в памяти (для отправки в OpenAI)."""
+    import numpy as np
+
     buf = io.BytesIO()
     clipped = np.clip(audio, -1.0, 1.0)
     pcm = (clipped * 32767.0).astype(np.int16)
@@ -99,8 +115,10 @@ def audio_to_wav_bytes(audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> byt
     return buf.getvalue()
 
 
-def normalize_audio(audio: np.ndarray) -> np.ndarray:
-    """Boost quiet mic input to a usable level for Whisper."""
+def normalize_audio(audio):
+    """Усиливает тихую запись, чтобы Whisper лучше распознал речь."""
+    import numpy as np
+
     if audio.size == 0:
         return audio
     energy = np.convolve(np.abs(audio), np.ones(800) / 800, mode="same")
@@ -116,13 +134,14 @@ def normalize_audio(audio: np.ndarray) -> np.ndarray:
 
 
 def model_likely_cached(model_size: str) -> bool:
-    """Best-effort check whether faster-whisper model files already exist."""
+    """Грубая проверка: скачана ли уже локальная модель Whisper."""
     hub = Path.home() / ".cache" / "huggingface" / "hub"
     marker = f"models--Systran--faster-whisper-{model_size}"
     return (hub / marker).exists()
 
 
 def _get_model(model_size: str, on_progress: ProgressCallback | None = None):
+    """Загружает (или берёт из кэша) локальную модель Whisper."""
     global _model, _model_name
     with _model_lock:
         if _model is not None and _model_name == model_size:
@@ -147,11 +166,12 @@ def _get_model(model_size: str, on_progress: ProgressCallback | None = None):
 
 
 def transcribe_local(
-    audio: np.ndarray,
+    audio,
     language: str = "ru",
     model_size: str = "small",
     on_progress: ProgressCallback | None = None,
 ) -> str:
+    """Расшифровывает речь локально через faster-whisper."""
     if audio.size == 0:
         return ""
     audio = normalize_audio(audio)
@@ -182,11 +202,12 @@ def transcribe_local(
 
 
 def transcribe_openai(
-    audio: np.ndarray,
+    audio,
     api_key: str,
     language: str = "ru",
     on_progress: ProgressCallback | None = None,
 ) -> str:
+    """Отправляет аудио в OpenAI Whisper API и возвращает текст."""
     if audio.size == 0:
         return ""
     audio = normalize_audio(audio)
@@ -242,13 +263,14 @@ def transcribe_openai(
 
 
 def recordings_dir() -> Path:
+    """Папка для сохранённых wav-записей голоса."""
     path = APP_DIR / "recordings"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def process_recording(
-    audio: np.ndarray,
+    audio,
     *,
     save_audio: bool = True,
     language: str = "ru",
@@ -257,6 +279,7 @@ def process_recording(
     openai_api_key: str = "",
     on_progress: ProgressCallback | None = None,
 ) -> RecordingResult:
+    """Полный цикл: нормализация → (опц.) сохранить wav → расшифровать."""
     audio = normalize_audio(audio)
     wav_path: Path | None = None
     if save_audio and audio.size > 0:
@@ -281,11 +304,12 @@ def process_recording(
 
 
 def transcribe_in_background(
-    audio: np.ndarray,
+    audio,
     on_done: Callable[[RecordingResult], None],
     on_error: Callable[[BaseException], None],
     on_progress: ProgressCallback | None = None,
 ) -> None:
+    """Запускает расшифровку в фоне, чтобы окно не зависало."""
     config = load_config()
     language = str(config.get("voice_language", "ru") or "ru")
     model_size = str(config.get("whisper_model", "small") or "small")

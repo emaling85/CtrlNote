@@ -1,4 +1,6 @@
-"""Tests for markdown editing helpers."""
+"""
+Автотесты горячих клавиш markdown в поле заметки.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ class NextMarkerTests(unittest.TestCase):
 
 
 class ToggleWrapLogicTests(unittest.TestCase):
-    """Pure string cases mirroring toggle_wrap behaviour."""
+    """Простые проверки строк, как у toggle_wrap (жирный/курсив)."""
 
     def test_wrap_unwrap(self) -> None:
         marker = "**"

@@ -1,4 +1,8 @@
-"""First-run setup wizard for CtrlNote."""
+"""
+Мастер первого запуска CtrlNote.
+
+Помогает выбрать vault Obsidian, горячую клавишу и режим голоса.
+"""
 
 from __future__ import annotations
 
@@ -16,9 +20,9 @@ def run_onboarding(
     *,
     on_done: Callable[[], None] | None = None,
 ) -> ctk.CTkToplevel:
-    """Show a short setup wizard. Calls on_done after successful save.
+    """Показывает короткий мастер настройки. После сохранения вызывает on_done.
 
-    Returns the dialog so the caller can ``wait_window(dialog)``.
+    Возвращает окно диалога — вызывающий код может ждать его закрытия.
     """
     if parent.state() == "withdrawn":
         parent.deiconify()
@@ -38,7 +42,7 @@ def run_onboarding(
     apply_window_icon(dialog)
 
     config = load_config()
-    step = {"n": 0}
+    step = {"n": 0}  # номер текущего шага мастера (0, 1, 2)
 
     vault_var = ctk.StringVar(value=str(config.get("vault_path", "")))
     hotkey_var = ctk.StringVar(value=str(config.get("hotkey", "ctrl+alt+n")))
@@ -71,10 +75,12 @@ def run_onboarding(
     next_btn.pack(side="right")
 
     def clear_content() -> None:
+        """Очищает область шага перед отрисовкой следующего."""
         for child in content.winfo_children():
             child.destroy()
 
     def render() -> None:
+        """Рисует текущий шаг мастера (vault / хоткей / голос)."""
         clear_content()
         n = step["n"]
         back_btn.configure(state="normal" if n > 0 else "disabled")
@@ -134,6 +140,7 @@ def run_onboarding(
             ).pack(anchor="w", pady=(16, 0))
 
     def finish() -> None:
+        """Проверяет данные, сохраняет настройки и закрывает мастер."""
         vault = vault_var.get().strip()
         if not vault:
             messagebox.showwarning("CtrlNote", "Укажите папку vault.", parent=dialog)
@@ -169,6 +176,7 @@ def run_onboarding(
             on_done()
 
     def go_next() -> None:
+        """Кнопка «Далее» / «Готово»."""
         if step["n"] == 0:
             if not vault_var.get().strip():
                 messagebox.showwarning(
@@ -187,6 +195,7 @@ def run_onboarding(
         finish()
 
     def go_back() -> None:
+        """Кнопка «Назад»."""
         if step["n"] > 0:
             step["n"] -= 1
             render()
@@ -199,4 +208,5 @@ def run_onboarding(
 
 
 def needs_onboarding() -> bool:
+    """Нужен ли мастер: True, если vault ещё не настроен."""
     return not is_configured()

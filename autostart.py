@@ -1,4 +1,8 @@
-"""Enable / disable CtrlNote autostart (Startup folder + Registry Run)."""
+"""
+Автозапуск CtrlNote вместе с Windows.
+
+Создаёт ярлык в папке «Автозагрузка» и/или запись в реестре Run.
+"""
 
 from __future__ import annotations
 
@@ -11,29 +15,34 @@ from pathlib import Path
 from config import APP_DIR
 from paths import asset_path
 
-SHORTCUT_NAME = "CtrlNote.lnk"
-CMD_FALLBACK_NAME = "CtrlNote.cmd"
-RUN_VALUE_NAME = "CtrlNote"
+SHORTCUT_NAME = "CtrlNote.lnk"  # ярлык в Автозагрузке
+CMD_FALLBACK_NAME = "CtrlNote.cmd"  # запасной вариант, если ярлык не создался
+RUN_VALUE_NAME = "CtrlNote"  # имя записи в реестре автозапуска
 
 
 def startup_dir() -> Path:
+    """Папка автозагрузки текущего пользователя Windows."""
     appdata = Path.home() / "AppData" / "Roaming"
     return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
 
 
 def install_dir() -> Path:
+    """Обычная папка установки: LocalAppData\\CtrlNote."""
     return Path.home() / "AppData" / "Local" / "CtrlNote"
 
 
 def shortcut_path() -> Path:
+    """Полный путь к ярлыку автозапуска."""
     return startup_dir() / SHORTCUT_NAME
 
 
 def cmd_fallback_path() -> Path:
+    """Путь к .cmd-файлу-запаснику в автозагрузке."""
     return startup_dir() / CMD_FALLBACK_NAME
 
 
 def is_autostart_enabled() -> bool:
+    """Проверяет, включён ли автозапуск (ярлык, .cmd или реестр)."""
     if shortcut_path().exists() or cmd_fallback_path().exists():
         return True
     try:
@@ -50,12 +59,17 @@ def is_autostart_enabled() -> bool:
 
 
 def _resolve_launch() -> tuple[Path, str, Path]:
-    """Prefer installed LocalAppData copy, then frozen exe, then dist, then venv."""
+    """
+    Ищет, чем именно запускать CtrlNote.
+
+    Порядок: установленный exe → текущий frozen exe → dist → python из venv.
+    Возвращает (программа, аргументы, рабочая папка).
+    """
     installed = install_dir() / "CtrlNote.exe"
     if installed.exists():
         return installed, "", installed.parent
 
-    # onedir layout: LocalAppData/CtrlNote/CtrlNote/CtrlNote.exe
+    # Вариант раскладки onedir: .../CtrlNote/CtrlNote/CtrlNote.exe
     nested = install_dir() / "CtrlNote" / "CtrlNote.exe"
     if nested.exists():
         return nested, "", nested.parent
@@ -72,6 +86,7 @@ def _resolve_launch() -> tuple[Path, str, Path]:
     if dist_exe.exists():
         return dist_exe, "", dist_exe.parent
 
+    # Режим разработки: pythonw + main.py (без чёрного окна консоли)
     venv_pythonw = APP_DIR / ".venv" / "Scripts" / "pythonw.exe"
     if venv_pythonw.exists():
         return venv_pythonw, str(APP_DIR / "main.py"), APP_DIR
@@ -89,6 +104,7 @@ def _resolve_launch() -> tuple[Path, str, Path]:
 
 
 def _run_powershell(script: str) -> None:
+    """Выполняет короткий скрипт PowerShell (нужно для создания .lnk)."""
     encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
     result = subprocess.run(
         [
@@ -111,10 +127,12 @@ def _run_powershell(script: str) -> None:
 
 
 def _ps_quote(value: str) -> str:
+    """Экранирует строку для PowerShell в одинарных кавычках."""
     return "'" + value.replace("'", "''") + "'"
 
 
 def _icon_for_shortcut(workdir: Path) -> Path | None:
+    """Ищет icon.ico рядом с программой или в assets."""
     for candidate in (
         workdir / "icon.ico",
         workdir / "assets" / "icon.ico",
@@ -127,6 +145,7 @@ def _icon_for_shortcut(workdir: Path) -> Path | None:
 
 
 def _create_shortcut() -> None:
+    """Создаёт ярлык CtrlNote.lnk в папке автозагрузки."""
     target, arguments, workdir = _resolve_launch()
     lnk = shortcut_path()
     lnk.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +170,7 @@ $s.Save()
 
 
 def _create_cmd_fallback() -> None:
+    """Запасной автозапуск через .cmd, если ярлык создать не удалось."""
     target, arguments, workdir = _resolve_launch()
     path = cmd_fallback_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,6 +187,7 @@ def _create_cmd_fallback() -> None:
 
 
 def _set_registry_run(enabled: bool) -> None:
+    """Включает или выключает запись CtrlNote в реестре Run."""
     path = r"Software\Microsoft\Windows\CurrentVersion\Run"
     if enabled:
         target, arguments, _workdir = _resolve_launch()
@@ -185,6 +206,7 @@ def _set_registry_run(enabled: bool) -> None:
 
 
 def enable_autostart() -> None:
+    """Включает автозапуск: ярлык (или .cmd) + запись в реестре."""
     try:
         _create_shortcut()
         fallback = cmd_fallback_path()
@@ -203,6 +225,7 @@ def enable_autostart() -> None:
 
 
 def disable_autostart() -> None:
+    """Выключает автозапуск: удаляет ярлыки и запись в реестре."""
     for path in (shortcut_path(), cmd_fallback_path()):
         try:
             if path.exists():
@@ -216,6 +239,7 @@ def disable_autostart() -> None:
 
 
 def set_autostart(enabled: bool) -> None:
+    """Включает или выключает автозапуск по флагу из настроек."""
     if enabled:
         enable_autostart()
     else:

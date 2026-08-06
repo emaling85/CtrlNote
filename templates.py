@@ -1,4 +1,8 @@
-"""Note templates: built-in seeds + user-editable templates.json."""
+"""
+Шаблоны заметок: готовые заготовки + файл templates.json, который можно править.
+
+Пользователь выбирает шаблон в окне быстрого ввода — подставляется готовый текст.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +15,7 @@ from config import APP_DIR
 
 TEMPLATES_PATH = APP_DIR / "templates.json"
 
+# Встроенные шаблоны при первом запуске (если файла ещё нет)
 DEFAULT_TEMPLATES: list[dict[str, str]] = [
     {
         "id": "idea",
@@ -46,10 +51,12 @@ DEFAULT_TEMPLATES: list[dict[str, str]] = [
     },
 ]
 
+# Пункт в списке: «не использовать шаблон»
 NONE_LABEL = "(без шаблона)"
 
 
 def _normalize(item: dict[str, Any]) -> dict[str, str] | None:
+    """Приводит запись шаблона к единому виду; без имени — отбрасывает."""
     name = str(item.get("name", "")).strip()
     body = str(item.get("body", ""))
     if not name:
@@ -59,6 +66,7 @@ def _normalize(item: dict[str, Any]) -> dict[str, str] | None:
 
 
 def load_templates() -> list[dict[str, str]]:
+    """Читает шаблоны с диска. При проблемах — записывает и возвращает встроенные."""
     if not TEMPLATES_PATH.exists():
         templates = deepcopy(DEFAULT_TEMPLATES)
         save_templates(templates)
@@ -89,6 +97,7 @@ def load_templates() -> list[dict[str, str]]:
 
 
 def save_templates(templates: list[dict[str, str]]) -> None:
+    """Записывает список шаблонов в templates.json."""
     clean: list[dict[str, str]] = []
     for item in templates:
         norm = _normalize(item)
@@ -99,6 +108,7 @@ def save_templates(templates: list[dict[str, str]]) -> None:
 
 
 def add_template(name: str, body: str) -> dict[str, str]:
+    """Создаёт новый шаблон и сохраняет его."""
     templates = load_templates()
     item = {"id": uuid.uuid4().hex[:10], "name": name.strip(), "body": body}
     templates.append(item)
@@ -107,6 +117,7 @@ def add_template(name: str, body: str) -> dict[str, str]:
 
 
 def update_template(template_id: str, name: str, body: str) -> bool:
+    """Обновляет существующий шаблон по id. True — нашли и сохранили."""
     templates = load_templates()
     for item in templates:
         if item["id"] == template_id:
@@ -118,6 +129,7 @@ def update_template(template_id: str, name: str, body: str) -> bool:
 
 
 def delete_template(template_id: str) -> bool:
+    """Удаляет шаблон по id. True — удалили."""
     templates = load_templates()
     new_list = [t for t in templates if t["id"] != template_id]
     if len(new_list) == len(templates):
@@ -127,6 +139,7 @@ def delete_template(template_id: str) -> bool:
 
 
 def get_template_by_name(name: str) -> dict[str, str] | None:
+    """Находит шаблон по отображаемому названию."""
     for item in load_templates():
         if item["name"] == name:
             return item
@@ -134,4 +147,5 @@ def get_template_by_name(name: str) -> dict[str, str] | None:
 
 
 def template_names() -> list[str]:
+    """Список названий для выпадающего меню (с пунктом «без шаблона»)."""
     return [NONE_LABEL, *[t["name"] for t in load_templates()]]

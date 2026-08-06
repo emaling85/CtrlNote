@@ -1,4 +1,8 @@
-"""Download wheels for packages into ./wheels (Windows / this Python)."""
+"""
+Скачивает готовые пакеты (.whl) в папку wheels.
+
+Удобно для офлайн-установки зависимостей на Windows.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +12,11 @@ import sys
 import urllib.request
 from pathlib import Path
 
+# Куда складывать скачанные .whl файлы
 WHEELS = Path(__file__).resolve().parent / "wheels"
 WHEELS.mkdir(exist_ok=True)
 
+# Список пакетов для офлайн-установки
 PACKAGES = [
     "sounddevice",
     "numpy",
@@ -39,10 +45,12 @@ PACKAGES = [
 
 
 def tag() -> str:
+    """Метка версии Python, например cp312."""
     return f"cp{sys.version_info.major}{sys.version_info.minor}"
 
 
 def is_compatible(filename: str, py_tag: str) -> bool:
+    """Подходит ли wheel для Windows и текущего Python."""
     name = filename.lower()
     if not name.endswith(".whl"):
         return False
@@ -67,6 +75,7 @@ def is_compatible(filename: str, py_tag: str) -> bool:
 
 
 def pick_url(files: list[dict], py_tag: str) -> str | None:
+    """Выбирает лучшую ссылку на wheel под текущую систему."""
     wheels = [f for f in files if is_compatible(f.get("filename", ""), py_tag)]
     wheels.sort(
         key=lambda f: (
@@ -80,6 +89,7 @@ def pick_url(files: list[dict], py_tag: str) -> str | None:
 
 
 def main() -> int:
+    """Скачивает все пакеты из списка (или имена из аргументов командной строки)."""
     py_tag = tag()
     print(f"Python tag: {py_tag}")
     pkgs = sys.argv[1:] or PACKAGES

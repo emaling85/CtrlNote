@@ -2,7 +2,10 @@ package app.ctrlnote
 
 import android.graphics.Bitmap
 
-/** Pass drawing between PaintActivity and CaptureActivity without Intent size limits. */
+/**
+ * Временное хранилище рисунка между экранами.
+ * Так картинка не передаётся через Intent (у него есть лимит размера).
+ */
 object DrawingHolder {
     @Volatile
     var bitmap: Bitmap? = null

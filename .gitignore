@@ -20,5 +20,7 @@ android/local.properties
 .pytest_cache/
 .env
 *.log
+debug_security_repro*.py
+debug-*.log
 .DS_Store
 Thumbs.db

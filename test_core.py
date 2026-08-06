@@ -1,4 +1,6 @@
-"""Smoke tests for note_saver and config (no GUI)."""
+"""
+Автотесты ядра: сохранение заметок, имена файлов, пути vault.
+"""
 
 from __future__ import annotations
 
@@ -59,7 +61,7 @@ class NoteSaverTests(unittest.TestCase):
             self.assertTrue(path.name.endswith("Заголовок.md"))
             self.assertIn("текст заметки", path.read_text(encoding="utf-8"))
 
-            # Unique names on collision
+            # Уникальные имена при совпадении
             path2 = save_note("Заголовок\nвторая", vault, "Projects/Alpha")
             self.assertNotEqual(path, path2)
             self.assertTrue(path2.exists())

@@ -1,4 +1,8 @@
-"""Generate smooth CtrlNote icons (high-res → downscale, no pixel-art CN)."""
+"""
+Генерация иконок CtrlNote.
+
+Рисует гладкий значок (не пиксельный) и сохраняет PNG/ICO в assets.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ BORDER = (255, 255, 255, 220)
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Подбирает системный шрифт для букв C и N на иконке."""
     px = max(10, int(size * 0.48))
     for name in (
         r"C:\Windows\Fonts\seguisb.ttf",
@@ -26,7 +31,7 @@ def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 
 def make_icon(size: int) -> Image.Image:
-    """Draw at 4× then LANCZOS-downscale for smooth edges at any size."""
+    """Рисует иконку в 4 раза крупнее, потом уменьшает — края получаются гладкими."""
     if size < 8:
         size = 8
     scale = 4
@@ -54,7 +59,7 @@ def make_icon(size: int) -> Image.Image:
     draw.text((x0, y), "C", font=font, fill=WHITE)
     draw.text((x0 + w0 + gap, y), "N", font=font, fill=WHITE)
 
-    # Slight blur before downscale reduces shimmer on small sizes
+    # Лёгкое размытие перед уменьшением — меньше «мерцания» на мелких размерах
     if size <= 32:
         img = img.filter(ImageFilter.GaussianBlur(radius=0.4 * scale / 4))
 
@@ -63,11 +68,12 @@ def make_icon(size: int) -> Image.Image:
 
 
 def export_all() -> None:
+    """Создаёт icon.png, icon.ico и иконки для трея в папке assets."""
     ASSETS.mkdir(parents=True, exist_ok=True)
     master = make_icon(512)
     master.save(ASSETS / "icon.png", optimize=True)
 
-    # Multi-resolution ICO for Windows title bars / exe / shortcuts
+    # ICO сразу нескольких размеров — для заголовка окна, exe и ярлыков
     sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
     frames = [make_icon(s) for s in sizes]
     frames[-1].save(
@@ -77,9 +83,9 @@ def export_all() -> None:
         append_images=frames[:-1],
     )
 
-    # Tray: smooth 32px (pystray)
+    # Для трея: гладкая иконка 32px (pystray)
     make_icon(32).save(ASSETS / "icon-tray.png")
-    # Hi-DPI tray fallback
+    # Для экранов с высоким DPI
     make_icon(64).save(ASSETS / "icon-tray@2x.png")
     print("exported", ASSETS)
 

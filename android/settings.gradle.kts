@@ -1,3 +1,4 @@
+// Корневые настройки Gradle-проекта CtrlNote (Android).
 pluginManagement {
     repositories {
         google()

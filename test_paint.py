@@ -1,4 +1,6 @@
-"""Tests for paint export helpers."""
+"""
+Автотесты окна рисования и преобразования холста в картинку.
+"""
 
 from __future__ import annotations
 

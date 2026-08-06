@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Манифест Android-приложения CtrlNote.
+  Описывает экраны (заметка, рисунок) и плитку в быстрых настройках.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
@@ -9,6 +13,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CtrlNote">
 
+        <!-- Экран быстрой заметки — точка входа приложения -->
         <activity
             android:name=".CaptureActivity"
             android:exported="true"
@@ -23,11 +28,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Экран рисования (открывается из заметки) -->
         <activity
             android:name=".PaintActivity"
             android:exported="false"
             android:theme="@style/Theme.CtrlNote" />
 
+        <!-- Плитка в шторке быстрых настроек -->
         <service
             android:name=".CtrlNoteTileService"
             android:exported="true"

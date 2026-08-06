@@ -1,4 +1,6 @@
-"""Build CtrlNote as onedir (faster startup than onefile)."""
+"""
+Сборка CtrlNote.exe (режим onedir — быстрее стартует, чем один большой файл).
+"""
 
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def main() -> int:
+    """Собирает папку dist/CtrlNote с CtrlNote.exe через PyInstaller."""
     pyinstaller = ROOT / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller.exists():
         print("PyInstaller not found. Install with:")
@@ -19,7 +22,7 @@ def main() -> int:
 
     icon = ROOT / "assets" / "icon.ico"
     assets_sep = ";" if sys.platform == "win32" else ":"
-    # onedir: no unpack-to-temp on every launch → much faster start
+    # onedir: не распаковывается во временную папку при каждом запуске — быстрее старт
     cmd = [
         str(pyinstaller),
         "--noconfirm",
@@ -70,7 +73,7 @@ def main() -> int:
         return result.returncode
 
     exe = ROOT / "dist" / "CtrlNote" / "CtrlNote.exe"
-    # Also copy icon next to exe for shortcuts / Explorer
+    # Копируем иконки рядом с exe — для ярлыков и Проводника
     for name in ("icon.ico", "icon.png", "icon-tray.png"):
         src = ROOT / "assets" / name
         if src.exists() and exe.parent.is_dir():

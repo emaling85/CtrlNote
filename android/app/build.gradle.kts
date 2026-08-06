@@ -1,3 +1,4 @@
+# Настройки сборки модуля Android-приложения CtrlNote.
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,8 +13,8 @@ android {
         applicationId = "app.ctrlnote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.1.2"
     }
 
     buildTypes {

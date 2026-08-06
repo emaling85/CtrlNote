@@ -1,4 +1,6 @@
-"""Tests for templates store."""
+"""
+Автотесты шаблонов заметок.
+"""
 
 from __future__ import annotations
 

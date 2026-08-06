@@ -1,4 +1,6 @@
-"""Tests for voice recording helpers (no model download required)."""
+"""
+Автотесты записи и расшифровки голоса (без реального микрофона, где возможно).
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Detect active window context and map/create an Obsidian vault folder."""
+"""
+Контекст активного окна: по заголовку программы угадываем папку в vault.
+
+Например, вкладка YouTube → папка YouTube; проект в Cursor → папка проекта.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ from pathlib import Path
 from note_saver import list_vault_folders, sanitize_filename
 from vault_paths import VaultPathError, resolve_under_vault
 
+# Хвосты названий редакторов кода — их отрезаем из заголовка
 _EDITOR_SUFFIXES = (
     " - Cursor",
     " — Cursor",
@@ -23,12 +28,13 @@ _EDITOR_SUFFIXES = (
     " - Notepad++",
 )
 
+# Хвосты названий браузеров
 _BROWSER_SUFFIXES = (
     " - Google Chrome",
     " — Google Chrome",
     " - Microsoft Edge",
     " — Microsoft Edge",
-    " - Microsoft​ Edge",  # narrow no-break space variants appear sometimes
+    " - Microsoft​ Edge",  # иногда попадается узкий пробел
     " - Mozilla Firefox",
     " — Mozilla Firefox",
     " - Opera",
@@ -38,7 +44,7 @@ _BROWSER_SUFFIXES = (
     " - Yandex",
 )
 
-# Site / app markers in titles → canonical folder name
+# Известные сайты/приложения в заголовке → короткое имя папки
 _KNOWN_CONTEXTS: dict[str, str] = {
     "youtube": "YouTube",
     "youtu.be": "YouTube",
@@ -72,11 +78,11 @@ _KNOWN_CONTEXTS: dict[str, str] = {
     "claude": "Claude",
 }
 
-_PATH_RE = re.compile(r"[A-Za-z]:\\[^\n\"<>|*?]+")
-_SPLIT_RE = re.compile(r"\s+[-—–]\s+")
+_PATH_RE = re.compile(r"[A-Za-z]:\\[^\n\"<>|*?]+")  # путь вида C:\...
+_SPLIT_RE = re.compile(r"\s+[-—–]\s+")  # части заголовка через « - »
 _FILE_EXT = (".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".json", ".txt", ".css", ".html", ".rs", ".go")
 
-# Auto-created folders must stay short labels, not page/chat titles
+# Автопапки — короткие ярлыки, не длинные заголовки страниц/чатов
 _MAX_FOLDER_LEN = 28
 _MAX_FOLDER_WORDS = 3
 _SENTENCE_MARKERS = (
@@ -94,7 +100,7 @@ _SENTENCE_MARKERS = (
 
 
 def get_foreground_title() -> str:
-    """Return the title of the currently focused window (Windows)."""
+    """Возвращает заголовок окна, которое сейчас на переднем плане (Windows)."""
     if sys.platform != "win32":
         return ""
     import ctypes
@@ -112,6 +118,7 @@ def get_foreground_title() -> str:
 
 
 def _strip_suffixes(title: str, suffixes: tuple[str, ...]) -> str:
+    """Убирает известный хвост приложения из заголовка."""
     cleaned = title.strip()
     for suffix in suffixes:
         if cleaned.endswith(suffix):
@@ -120,7 +127,7 @@ def _strip_suffixes(title: str, suffixes: tuple[str, ...]) -> str:
 
 
 def _is_folder_worthy(name: str) -> bool:
-    """Reject long page/chat titles used as folder names."""
+    """Отсекает слишком длинные или «предложные» названия — они плохи как имя папки."""
     cleaned = name.strip()
     if len(cleaned) < 2 or len(cleaned) > _MAX_FOLDER_LEN:
         return False
@@ -135,20 +142,22 @@ def _is_folder_worthy(name: str) -> bool:
 
 def extract_context_name(title: str) -> str | None:
     """
-    One folder-worthy label from a window title.
-    Examples:
+    Достаёт одно короткое имя папки из заголовка окна.
+
+    Примеры:
       'Cool video - YouTube - Google Chrome' → 'YouTube'
       'main.py - CtrlNote - Cursor' → 'CtrlNote'
-      long page title without a site → None (keep last folder)
+      длинный заголовок страницы без сайта → None (оставляем прошлую папку)
     """
     if not title:
         return None
 
     raw = title.strip()
+    # Свои окна не считаем контекстом
     if raw in {"CtrlNote", "Настройки CtrlNote"}:
         return None
 
-    # Prefer known sites anywhere in the title (browser cases)
+    # Сначала ищем известные сайты в любом месте заголовка
     lower = raw.lower()
     for key, canonical in sorted(_KNOWN_CONTEXTS.items(), key=lambda kv: -len(kv[0])):
         if re.search(rf"(?:^|[\s\-—–|/]){re.escape(key)}(?:$|[\s\-—–|/])", lower):
@@ -157,7 +166,7 @@ def extract_context_name(title: str) -> str | None:
     cleaned = _strip_suffixes(raw, _BROWSER_SUFFIXES)
     cleaned = _strip_suffixes(cleaned, _EDITOR_SUFFIXES)
 
-    # Paths → last meaningful folder
+    # Если в заголовке путь к файлу — берём подходящую папку из пути
     for match in _PATH_RE.findall(raw):
         try:
             parts = [p for p in Path(match).parts if p not in {".", ".."}]
@@ -176,6 +185,7 @@ def extract_context_name(title: str) -> str | None:
                 if name:
                     return name
 
+    # Иначе разбираем куски заголовка справа налево
     parts = [p.strip() for p in _SPLIT_RE.split(cleaned) if p.strip()]
     for part in reversed(parts):
         low = part.lower()
@@ -193,13 +203,13 @@ def extract_context_name(title: str) -> str | None:
 
 
 def extract_project_hints(title: str) -> list[str]:
-    """Back-compat helper used by tests / soft matching."""
+    """Подсказки для совместимости со старыми тестами / мягким поиском."""
     name = extract_context_name(title)
     return [name] if name else []
 
 
 def match_vault_folder(hints: list[str], folders: list[str]) -> str | None:
-    """Return best matching existing vault-relative folder for hints."""
+    """Ищет среди существующих папок vault лучшее совпадение с подсказкой."""
     candidates = [f.replace("\\", "/") for f in folders if f]
     if not hints or not candidates:
         return None
@@ -209,15 +219,18 @@ def match_vault_folder(hints: list[str], folders: list[str]) -> str | None:
         if not h:
             continue
 
+        # Точное совпадение пути
         for folder in candidates:
             if folder.lower() == h:
                 return folder
 
+        # Совпадение по имени последней папки
         hits = [f for f in candidates if Path(f).name.lower() == h]
         if hits:
             hits.sort(key=lambda f: (f.count("/"), len(f)))
             return hits[0]
 
+        # Подсказка встречается в любом сегменте пути
         soft = [f for f in candidates if h in {p.lower() for p in f.split("/")}]
         if soft:
             soft.sort(key=lambda f: (f.count("/"), len(f)))
@@ -233,9 +246,9 @@ def resolve_folder(
     create: bool = True,
 ) -> str | None:
     """
-    Find an existing vault folder for the active context, or create one at vault root.
+    Находит или создаёт папку vault под текущий контекст.
 
-    Returns vault-relative folder path (e.g. 'YouTube'), or None if no context.
+    Возвращает относительный путь (например 'YouTube') или None, если контекста нет.
     """
     win_title = title if title is not None else get_foreground_title()
     name = extract_context_name(win_title or "")
@@ -252,7 +265,7 @@ def resolve_folder(
         return matched
 
     if not create:
-        return name  # caller may create later
+        return name  # вызывающий код создаст папку сам
 
     folder_name = sanitize_filename(name, max_length=60)
     if not folder_name or folder_name in {".", ".."} or ".." in Path(folder_name).parts:
@@ -266,7 +279,7 @@ def resolve_folder(
 
 
 def suggest_folder(vault_folders: list[str], title: str | None = None) -> str | None:
-    """Match only (no create) — kept for compatibility."""
+    """Только поиск без создания папки — для совместимости."""
     win_title = title if title is not None else get_foreground_title()
     if not win_title:
         return None

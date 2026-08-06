@@ -1,4 +1,6 @@
-"""Tests for first-run onboarding helpers."""
+"""
+Автотесты мастера первого запуска.
+"""
 
 from __future__ import annotations
 

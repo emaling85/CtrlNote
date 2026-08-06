@@ -1,4 +1,5 @@
 @echo off
+REM Копирует собранный CtrlNote в LocalAppData и создаёт ярлыки.
 chcp 65001 >nul
 setlocal
 set "SRC_DIR=%~dp0dist\CtrlNote"

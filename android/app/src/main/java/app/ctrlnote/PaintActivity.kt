@@ -70,8 +70,10 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
+/** Инструменты рисования на панели. */
 private enum class Tool { Pen, Eraser, Line, Rect, Oval, Fill }
 
+/** Одна фигура или штрих на холсте. */
 private sealed class DrawOp {
     data class Freehand(val path: Path, val color: Color, val width: Float) : DrawOp()
     data class LineOp(val a: Offset, val b: Offset, val color: Color, val width: Float) : DrawOp()
@@ -79,11 +81,16 @@ private sealed class DrawOp {
     data class OvalOp(val a: Offset, val b: Offset, val color: Color, val width: Float) : DrawOp()
 }
 
+/** Шаг истории для отмены/повтора: фигура или смена всей картинки. */
 private sealed class Hist {
     data class Op(val op: DrawOp) : Hist()
     data class Raster(val before: Bitmap, val after: Bitmap) : Hist()
 }
 
+/**
+ * Экран рисования Android-версии.
+ * Готовый рисунок уходит в CaptureActivity через DrawingHolder.
+ */
 class PaintActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -552,6 +559,7 @@ class PaintActivity : ComponentActivity() {
     }
 }
 
+/** Вписывает картинку в размер холста с полями. */
 private fun fitBitmap(src: Bitmap, tw: Int, th: Int): Bitmap {
     val out = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
     val canvas = AndroidCanvas(out)
@@ -578,10 +586,11 @@ private fun clipboardBitmap(context: Context): Bitmap? {
     val item = clip.getItemAt(0)
     val uri = item.uri
     if (uri != null) return decodeBitmap(context, uri)
-    // Some keyboards put HTML/text only — no bitmap
+    // Некоторые клавиатуры кладут только текст/HTML — без картинки
     return null
 }
 
+/** Заливка области цветом (как ведёрко в Paint). */
 private fun floodFillBitmap(bmp: Bitmap, x: Int, y: Int, newColor: Int, tol: Int) {
     val w = bmp.width
     val h = bmp.height

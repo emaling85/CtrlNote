@@ -1,4 +1,8 @@
-"""CtrlNote Setup wizard — installs app to LocalAppData."""
+"""
+Мастер установки CtrlNote.
+
+Распаковывает программу в LocalAppData и создаёт ярлыки на рабочем столе / в Пуске.
+"""
 
 from __future__ import annotations
 
@@ -15,12 +19,12 @@ DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
 
 
 def _safe_extractall(zf: zipfile.ZipFile, dest: Path) -> None:
-    """Extract zip members only if each resolves inside dest (blocks Zip Slip)."""
+    """Распаковывает zip только внутрь папки установки (защита от Zip Slip)."""
     dest = dest.resolve()
     for info in zf.infolist():
         name = info.filename
         if not name or name.endswith("/"):
-            # Directory entries — still validate
+            # Записи-папки в zip — тоже проверяем
             rel = name.rstrip("/")
             if not rel:
                 continue
@@ -38,9 +42,10 @@ def _safe_extractall(zf: zipfile.ZipFile, dest: Path) -> None:
 
 
 def _payload_zip() -> Path:
+    """Находит app.zip с файлами программы (в setup.exe или рядом)."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "app.zip"  # type: ignore[attr-defined]
-    # Dev: zip next to this file or under dist/
+    # В разработке: zip рядом с файлом или в dist/
     here = Path(__file__).resolve().parent
     for candidate in (
         here / "app.zip",
@@ -53,6 +58,7 @@ def _payload_zip() -> Path:
 
 
 def _create_shortcut(lnk: Path, target: Path, workdir: Path, icon: Path | None) -> None:
+    """Создаёт ярлык Windows (.lnk) через PowerShell."""
     import base64
     import subprocess
 
@@ -88,6 +94,24 @@ $s.Save()
     )
 
 
+def _normalize_install_dest(dest: Path) -> Path:
+    """Нормализует папку установки: всегда .../CtrlNote, без опасных корней."""
+    dest = dest.expanduser()
+    if dest.name.lower() != APP_NAME.lower():
+        dest = dest / APP_NAME
+    dest = dest.resolve()
+    # Запрещаем слишком короткие пути (например C:\Users)
+    if len(dest.parts) < 3:
+        raise ValueError(
+            f"Папка установки слишком высоко в дереве диска.\n"
+            f"Выберите путь вроде {DEFAULT_DIR}"
+        )
+    forbidden_names = {"windows", "system32", "program files", "program files (x86)"}
+    if any(p.lower() in forbidden_names for p in dest.parts):
+        raise ValueError("Нельзя устанавливать в системные папки Windows")
+    return dest
+
+
 def install(
     dest: Path,
     *,
@@ -96,7 +120,8 @@ def install(
     autostart: bool = False,
     progress=None,
 ) -> Path:
-    dest = dest.expanduser().resolve()
+    """Устанавливает CtrlNote в папку dest и создаёт ярлыки."""
+    dest = _normalize_install_dest(dest)
     zpath = _payload_zip()
 
     def report(msg: str) -> None:
@@ -105,11 +130,11 @@ def install(
 
     report("Распаковка…")
     if dest.exists():
-        # Keep config.json if present
+        # Сохраняем старый config.json при переустановке
         cfg = dest / "config.json"
         cfg_backup = None
         if cfg.exists():
-            # Random TEMP name (not a fixed backup filename)
+            # Временное имя бэкапа (не фиксированное)
             _fd, _tmp_name = tempfile.mkstemp(prefix="ctrlnote-cfg-", suffix=".json")
             os.close(_fd)
             cfg_backup = Path(_tmp_name)
@@ -131,10 +156,10 @@ def install(
 
     exe = dest / "CtrlNote.exe"
     if not exe.exists():
-        # zip may contain a top-level CtrlNote/ folder
+        # В zip может быть вложенная папка CtrlNote/
         nested = dest / "CtrlNote" / "CtrlNote.exe"
         if nested.exists():
-            # flatten
+            # Расплющиваем структуру папок
             tmp = dest.parent / (dest.name + "_tmp_flatten")
             if tmp.exists():
                 shutil.rmtree(tmp, ignore_errors=True)
@@ -170,9 +195,9 @@ def install(
     if autostart:
         report("Автозапуск…")
         try:
-            # Prefer installing into place first, then enable via same logic as app
+            # Сначала ставим программу на место, потом включаем автозапуск
             sys.path.insert(0, str(dest))
-            # Use registry + startup from our bundled approach without importing app:
+            # Автозапуск через реестр и ярлык без импорта основного приложения:
             run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
             import winreg
 
@@ -196,6 +221,7 @@ def install(
 
 
 def main() -> int:
+    """Окно установщика: выбор папки и опций, кнопка «Установить»."""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
@@ -211,7 +237,7 @@ def main() -> int:
     status_var = tk.StringVar(value="Установит CtrlNote и создаст ярлыки.")
 
     try:
-        # Window icon if available next to setup
+        # Иконка окна, если есть рядом с setup
         ico = Path(sys.executable).with_name("icon.ico") if getattr(sys, "frozen", False) else Path(__file__).parent / "assets" / "icon.ico"
         if not ico.exists():
             ico = Path(__file__).resolve().parent / "assets" / "icon.ico"
@@ -248,6 +274,7 @@ def main() -> int:
     btns.pack(fill="x", side="bottom")
 
     def do_install() -> None:
+        """Запускает установку по нажатию кнопки."""
         dest = Path(dest_var.get().strip())
         if not dest_var.get().strip():
             messagebox.showwarning("CtrlNote", "Укажите папку установки")

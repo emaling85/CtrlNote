@@ -1,4 +1,8 @@
-"""Build CtrlNote-Setup.exe (wizard + embedded app.zip from dist/CtrlNote)."""
+"""
+Сборка установщика CtrlNote-Setup.exe.
+
+Упаковывает dist/CtrlNote в zip и вшивает его в мастер установки.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +20,7 @@ SETUP_NAME = "CtrlNote-Setup"
 
 
 def _zip_app() -> None:
+    """Упаковывает собранное приложение в app.zip для установщика."""
     if not (DIST_APP / "CtrlNote.exe").exists():
         raise SystemExit(
             f"Нет {DIST_APP / 'CtrlNote.exe'}\nСначала: build_exe.bat"
@@ -33,6 +38,7 @@ def _zip_app() -> None:
 
 
 def main() -> int:
+    """Собирает CtrlNote-Setup.exe с вложенным app.zip."""
     _zip_app()
 
     pyinstaller = ROOT / ".venv" / "Scripts" / "pyinstaller.exe"
@@ -42,7 +48,7 @@ def main() -> int:
 
     icon = ROOT / "assets" / "icon.ico"
     sep = ";" if sys.platform == "win32" else ":"
-    # Clean previous setup build leftovers in dist root name conflict
+    # Убираем старые файлы setup, чтобы не было конфликта имён
     for stale in (ROOT / "dist" / f"{SETUP_NAME}.exe", ROOT / "build" / SETUP_NAME):
         if stale.is_file():
             stale.unlink()
@@ -73,7 +79,7 @@ def main() -> int:
 
     final = OUT_DIR / f"{SETUP_NAME}.exe"
     shutil.copy2(built, final)
-    # Keep a copy of icon next to setup for nicer Explorer view (optional)
+    # Иконка рядом с setup — красивее в Проводнике
     if icon.exists():
         shutil.copy2(icon, OUT_DIR / "icon.ico")
 

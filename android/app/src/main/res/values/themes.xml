@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Тема приложения: тёмный фон, без стандартной панели действий -->
 <resources>
     <style name="Theme.CtrlNote" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">#1A1A1A</item>

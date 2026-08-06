@@ -1,4 +1,8 @@
-"""Global hotkey via Win32 RegisterHotKey (no low-level keyboard hook)."""
+"""
+Глобальная горячая клавиша через Windows API (RegisterHotKey).
+
+Работает даже когда окно CtrlNote скрыто — без перехвата каждой клавиши системы.
+"""
 
 from __future__ import annotations
 
@@ -10,17 +14,19 @@ from typing import Callable
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
+# Модификаторы: какие служебные клавиши зажаты вместе с основной
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
-MOD_NOREPEAT = 0x4000
+MOD_NOREPEAT = 0x4000  # не слать повтор, пока клавиша удерживается
 
-WM_HOTKEY = 0x0312
-WM_QUIT = 0x0012
+WM_HOTKEY = 0x0312  # сообщение Windows: нажали зарегистрированный хоткей
+WM_QUIT = 0x0012  # сигнал потоку завершиться
 
-HOTKEY_ID = 1
+HOTKEY_ID = 1  # внутренний номер нашей комбинации
 
+# Имена особых клавиш → коды Windows
 _VK_MAP = {
     "space": 0x20,
     "enter": 0x0D,
@@ -48,6 +54,8 @@ _VK_MAP = {
 
 
 class MSG(ctypes.Structure):
+    """Структура сообщения Windows (нужна для цикла ожидания хоткея)."""
+
     _fields_ = [
         ("hwnd", wintypes.HWND),
         ("message", wintypes.UINT),
@@ -59,7 +67,7 @@ class MSG(ctypes.Structure):
 
 
 def parse_hotkey(hotkey: str) -> tuple[int, int]:
-    """Parse 'ctrl+alt+n' into (modifiers, virtual_key)."""
+    """Разбирает строку вроде 'ctrl+alt+n' на коды модификаторов и клавиши."""
     parts = [p.strip().lower() for p in hotkey.replace("-", "+").split("+") if p.strip()]
     mods = 0
     key: str | None = None
@@ -81,6 +89,7 @@ def parse_hotkey(hotkey: str) -> tuple[int, int]:
     if key in _VK_MAP:
         vk = _VK_MAP[key]
     elif len(key) == 1:
+        # Обычная буква или цифра
         vk = ord(key.upper())
     else:
         raise ValueError(f"Unsupported key in hotkey: {key!r}")
@@ -89,17 +98,18 @@ def parse_hotkey(hotkey: str) -> tuple[int, int]:
 
 
 class GlobalHotkey:
-    """Register a system-wide hotkey without hooking every keypress."""
+    """Регистрирует системную комбинацию клавиш и вызывает callback при нажатии."""
 
     def __init__(self, hotkey: str, callback: Callable[[], None]) -> None:
         self.hotkey = hotkey
         self.callback = callback
         self._thread: threading.Thread | None = None
         self._thread_id = 0
-        self._ready = threading.Event()
+        self._ready = threading.Event()  # сигнал «регистрация завершена»
         self._error: str | None = None
 
     def start(self) -> None:
+        """Запускает фоновый поток, который слушает горячую клавишу."""
         self._thread = threading.Thread(target=self._run, name="CtrlNoteHotkey", daemon=True)
         self._thread.start()
         self._ready.wait(timeout=3)
@@ -107,6 +117,7 @@ class GlobalHotkey:
             raise RuntimeError(self._error)
 
     def stop(self) -> None:
+        """Снимает регистрацию и останавливает поток."""
         if self._thread_id:
             user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
         if self._thread and self._thread.is_alive():
@@ -115,6 +126,7 @@ class GlobalHotkey:
         self._thread_id = 0
 
     def _run(self) -> None:
+        """Цикл потока: зарегистрировать хоткей и ждать сообщений Windows."""
         self._thread_id = kernel32.GetCurrentThreadId()
         try:
             mods, vk = parse_hotkey(self.hotkey)
@@ -135,6 +147,7 @@ class GlobalHotkey:
             result = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
             if result == 0 or result == -1:
                 break
+            # Наша комбинация — вызываем действие (показать окно и т.п.)
             if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID:
                 try:
                     self.callback()

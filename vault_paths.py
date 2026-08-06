@@ -1,4 +1,9 @@
-"""Vault path containment — all note writes must stay under the vault root."""
+"""
+Безопасные пути внутри vault Obsidian.
+
+Все сохранения заметок и вложений должны оставаться внутри выбранной папки vault.
+Это защита от случайной записи «куда угодно» на диске.
+"""
 
 from __future__ import annotations
 
@@ -6,14 +11,15 @@ from pathlib import Path
 
 
 class VaultPathError(ValueError):
-    """Raised when a path would escape the vault."""
+    """Ошибка: путь пытается выйти за пределы vault."""
 
 
 def resolve_under_vault(vault_path: str | Path, *relative_parts: str) -> Path:
-    """Join relative segments under vault and reject escapes / absolute segments.
+    """
+    Собирает полный путь внутри vault из относительных кусков.
 
-    Empty parts are skipped. Each non-empty part must be a relative path without
-    ``..`` components. The resolved result must stay inside ``vault.resolve()``.
+    Пустые части пропускаются. Запрещены абсолютные пути и «..» (выход наверх).
+    Итоговый путь обязан лежать строго внутри vault.
     """
     vault = Path(vault_path).expanduser().resolve()
     segments: list[str] = []
@@ -24,14 +30,16 @@ def resolve_under_vault(vault_path: str | Path, *relative_parts: str) -> Path:
         if not text or text == ".":
             continue
         part = Path(text)
+        # Абсолютный путь или сетевой UNC — нельзя
         if part.is_absolute() or (len(part.parts) > 0 and part.parts[0] in {part.anchor, "/"}):
-            # Windows: Path("C:/x").is_absolute() True; also reject UNC
             raise VaultPathError(f"Absolute path not allowed under vault: {raw!r}")
+        # «Подняться на уровень выше» тоже нельзя
         if ".." in part.parts:
             raise VaultPathError(f"Parent traversal not allowed under vault: {raw!r}")
         segments.extend(p for p in part.parts if p not in {"", "."})
 
     target = vault.joinpath(*segments).resolve() if segments else vault
+    # Финальная проверка: путь действительно внутри vault
     try:
         target.relative_to(vault)
     except ValueError as exc:
@@ -40,10 +48,8 @@ def resolve_under_vault(vault_path: str | Path, *relative_parts: str) -> Path:
 
 
 def safe_attachment_name(name: str) -> str:
-    """Keep only the final path component (no directories / traversal)."""
+    """Оставляет только имя файла вложения (без папок и «..» как целого компонента)."""
     base = Path(str(name).replace("\\", "/")).name
     if not base or base in {".", ".."}:
-        raise VaultPathError(f"Invalid attachment name: {name!r}")
-    if ".." in base:
         raise VaultPathError(f"Invalid attachment name: {name!r}")
     return base

@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!--
+  Лендинг CtrlNote: страница «о программе» для сайта/документации.
+  Ниже — разметка и стили; логики приложения здесь нет.
+-->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -13,6 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <style>
+    /* Цвета и оформление страницы */
     :root {
       --bg0: #0c1220;
       --bg1: #152038;
@@ -39,6 +44,7 @@
       margin: 0 auto;
       padding: 4.5rem 1.5rem 5rem;
     }
+    /* Блок с логотипом и названием */
     .brand {
       display: flex;
       align-items: center;
@@ -67,6 +73,7 @@
       animation: rise 0.7s 0.08s ease both;
     }
     .lead strong { color: var(--text); font-weight: 700; }
+    /* Кнопки действий (скачать и т.п.) */
     .cta {
       display: flex;
       flex-wrap: wrap;

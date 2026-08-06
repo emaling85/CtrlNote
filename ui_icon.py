@@ -1,4 +1,8 @@
-"""Apply CtrlNote window icons (title bar / taskbar) consistently."""
+"""
+Иконка окна CtrlNote (заголовок и панель задач Windows).
+
+Одинаково применяется к главному окну и к всплывающим диалогам.
+"""
 
 from __future__ import annotations
 
@@ -6,16 +10,17 @@ from typing import Any
 
 from paths import asset_path
 
+# Храним ссылки на картинки, чтобы их не удалил сборщик мусора Python
 _photo_refs: list[Any] = []
 
 
 def apply_window_icon(window: Any) -> None:
-    """Set .ico + PNG iconphoto on a Tk / CTk window or toplevel."""
+    """Ставит .ico и PNG-иконку на окно Tk / CustomTkinter."""
     ico = asset_path("icon.ico")
     png = asset_path("icon.png")
     try:
         if ico.exists():
-            # CTkToplevel sometimes needs a deferred call on Windows
+            # На Windows для CTkToplevel иногда нужна отложенная установка
             def _set_ico() -> None:
                 try:
                     window.iconbitmap(default=str(ico))
@@ -35,11 +40,11 @@ def apply_window_icon(window: Any) -> None:
             from PIL import Image, ImageTk
 
             img = Image.open(png).convert("RGBA")
-            # Crisp downscale from master art
+            # Уменьшаем мастер-картинку до чётких 64×64 для панели задач
             photo = ImageTk.PhotoImage(img.resize((64, 64), Image.Resampling.LANCZOS))
             window.iconphoto(True, photo)
             _photo_refs.append(photo)
-            # Keep on the widget so GC doesn't drop it
+            # Дублируем на самом виджете — иначе иконка может «пропасть»
             window._ctrlnote_icon_photo = photo  # noqa: SLF001
     except Exception:  # noqa: BLE001
         pass

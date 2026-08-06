@@ -1,4 +1,5 @@
 @echo off
+REM Собирает установщик CtrlNote-Setup.exe (после build_exe).
 chcp 65001 >nul
 cd /d "%~dp0"
 if not exist "dist\CtrlNote\CtrlNote.exe" (

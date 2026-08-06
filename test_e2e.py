@@ -1,4 +1,6 @@
-"""End-to-end smoke: configure vault, save note via CaptureWindow helpers."""
+"""
+Сквозные (e2e) проверки ключевых сценариев приложения.
+"""
 
 from __future__ import annotations
 
@@ -36,7 +38,7 @@ def main() -> None:
         print(f"OK saved: {path}")
         print(f"OK content length: {len(text)}")
 
-        # Import GUI modules (create window briefly)
+        # Подключаем модули GUI (окно создаётся ненадолго)
         import customtkinter as ctk
 
         from capture_window import CaptureWindow

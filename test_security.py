@@ -1,4 +1,6 @@
-"""Security tests: vault containment + zip slip rejection + secrets."""
+"""
+Автотесты безопасности путей (нельзя выйти за пределы vault).
+"""
 
 from __future__ import annotations
 
@@ -69,8 +71,34 @@ class VaultContainmentTests(unittest.TestCase):
 
     def test_safe_attachment_name(self) -> None:
         self.assertEqual(safe_attachment_name("../Outside/evil.png"), "evil.png")
+        self.assertEqual(safe_attachment_name("photo..final.png"), "photo..final.png")
         with self.assertRaises(VaultPathError):
             safe_attachment_name("..")
+
+    def test_daily_breaks_hardlink(self) -> None:
+        import os
+
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp) / "Vault"
+            vault.mkdir()
+            outside = Path(tmp) / "Outside"
+            outside.mkdir()
+            outside_file = outside / "exfil.md"
+            outside_file.write_text("# outside\n", encoding="utf-8")
+            from daily_note import daily_note_name
+
+            link = vault / f"{daily_note_name()}.md"
+            os.link(outside_file, link)
+            append_to_daily_file(vault, "SecretNote")
+            self.assertNotIn("SecretNote", outside_file.read_text(encoding="utf-8"))
+            self.assertIn("SecretNote", link.read_text(encoding="utf-8"))
+
+    def test_dpapi_failure_not_plaintext(self) -> None:
+        import config as config_mod
+
+        with mock.patch("ctypes.windll.crypt32.CryptProtectData", return_value=0):
+            with self.assertRaises(config_mod.SecretStorageError):
+                config_mod._dpapi_protect("sk-secret")
 
     def test_context_create_stays_in_vault(self) -> None:
         from context import resolve_folder
@@ -125,6 +153,49 @@ class ApiKeyStorageTests(unittest.TestCase):
                     )
                 loaded = config_mod.load_config()
                 self.assertEqual(loaded["openai_api_key"], "sk-test-secret-key")
+
+
+class InstallDestTests(unittest.TestCase):
+    def test_normalize_appends_ctrlnote(self) -> None:
+        from setup_wizard import APP_NAME, _normalize_install_dest
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = _normalize_install_dest(Path(tmp))
+            self.assertEqual(dest.name, APP_NAME)
+            self.assertTrue(str(dest).endswith(APP_NAME))
+
+    def test_normalize_rejects_shallow(self) -> None:
+        from setup_wizard import _normalize_install_dest
+
+        with self.assertRaises(ValueError):
+            _normalize_install_dest(Path("C:/"))
+
+
+class FolderLabelTests(unittest.TestCase):
+    def test_root_label_not_overwritten_by_same_named_folder(self) -> None:
+        from note_saver import list_vault_folders
+
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp) / "Vault"
+            vault.mkdir()
+            (vault / "(корень vault)").mkdir()
+            folders = list_vault_folders(vault)
+            self.assertIn("", folders)
+            self.assertIn("(корень vault)", folders)
+            # UI maps colliding name to ./ (корень vault); both keys coexist
+            labels = []
+            fmap = {}
+            for rel in folders:
+                if rel == "":
+                    label = "(корень vault)"
+                elif rel == "(корень vault)":
+                    label = "./(корень vault)"
+                else:
+                    label = rel
+                labels.append(label)
+                fmap[label] = rel
+            self.assertEqual(fmap["(корень vault)"], "")
+            self.assertEqual(fmap["./(корень vault)"], "(корень vault)")
 
 
 if __name__ == "__main__":

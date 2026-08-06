@@ -1,23 +1,26 @@
-"""Popup capture window for quick notes."""
+"""
+Окно быстрой заметки CtrlNote.
+
+Появляется по горячей клавише или из трея: текст, голос, картинки, шаблоны, сохранение в vault.
+"""
 
 from __future__ import annotations
 
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 from typing import Callable
 
 import customtkinter as ctk
-from PIL import Image, ImageGrab
+from PIL import Image
 
 from config import is_configured, load_config, save_config
-from note_saver import list_vault_folders, save_note
 from templates import NONE_LABEL, get_template_by_name, load_templates, template_names
 
 
 class CaptureWindow:
-    """Reusable always-on-top capture dialog."""
+    """Всплывающее окно поверх других программ для быстрого ввода заметки."""
 
     def __init__(
         self,
@@ -26,25 +29,31 @@ class CaptureWindow:
     ) -> None:
         self.on_saved = on_saved
         self.on_hotkey_changed = on_hotkey_changed
+
+        # Тема до создания окна — быстрее первая отрисовка.
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("dark-blue")
+
         self.root = ctk.CTk()
+        # Сразу прячем, чтобы при сборке UI не мигало пустое окно.
+        self.root.withdraw()
         self.root.title("CtrlNote")
         self.root.geometry("560x400")
         self.root.minsize(480, 320)
         self.root.attributes("-topmost", True)
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
 
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("dark-blue")
-
+        # Переменные интерфейса: выбранная папка, шаблон, статусная строка
         self.folder_var = ctk.StringVar(value="(корень vault)")
         self.template_var = ctk.StringVar(value=NONE_LABEL)
         self.status_var = ctk.StringVar(value="")
         self._folder_map: dict[str, str] = {"(корень vault)": ""}
         self._visible = False
-        self._pending_images: list[tuple[str, Image.Image]] = []
-        self._recorder = None
+        self._show_gen = 0
+        self._pending_images: list[tuple[str, Image.Image]] = []  # картинки до сохранения
+        self._recorder = None  # текущая запись с микрофона
         self._voice_busy = False
-        self._pending_context_title: str | None = None
+        self._pending_context_title: str | None = None  # заголовок окна до фокуса CtrlNote
         self._last_voice_start: str | None = None
         self._last_voice_end: str | None = None
 
@@ -53,17 +62,20 @@ class CaptureWindow:
         self.root.bind("<Control-Return>", lambda _e: self._save())
         self.root.bind("<Control-KP_Enter>", lambda _e: self._save())
         self._bind_paste_shortcuts()
+        # Горячие клавиши markdown подключим чуть позже — не нужны на первом кадре.
+        self.root.after_idle(self._bind_markdown_shortcuts)
+
+    def _bind_markdown_shortcuts(self) -> None:
         from markdown_edit import bind_markdown_shortcuts
 
         bind_markdown_shortcuts(self.root, self.text)
 
-        # Start hidden; shown via hotkey / tray
-        self.root.withdraw()
-
     def _build_ui(self) -> None:
-        # Quiet dark chrome
+        """Собирает элементы окна: папка, кнопки, текст, подвал."""
+        # Тёмный спокойный фон
         self.root.configure(fg_color="#1a1a1a")
 
+        # Верхняя строка: выбор папки vault и кнопки (настройки, рисунок, микрофон)
         top = ctk.CTkFrame(self.root, fg_color="transparent")
         top.pack(fill="x", padx=14, pady=(12, 6))
 
@@ -94,12 +106,14 @@ class CaptureWindow:
         self.mic_btn = ctk.CTkButton(top, text="🎙", command=self._toggle_voice, **icon_kwargs)
         self.mic_btn.pack(side="right", padx=(4, 0))
 
+        # Выбор шаблона заметки
         mid = ctk.CTkFrame(self.root, fg_color="transparent")
         mid.pack(fill="x", padx=14, pady=(0, 6))
+        # Имена шаблонов подтянем при первом показе — без чтения диска при сборке UI.
         self.template_menu = ctk.CTkOptionMenu(
             mid,
             variable=self.template_var,
-            values=template_names(),
+            values=[NONE_LABEL],
             width=180,
             height=28,
             command=self._on_template_chosen,
@@ -109,6 +123,7 @@ class CaptureWindow:
         )
         self.template_menu.pack(side="left")
 
+        # Основное поле ввода текста заметки
         self.text = ctk.CTkTextbox(
             self.root,
             font=ctk.CTkFont(size=14),
@@ -119,6 +134,7 @@ class CaptureWindow:
         )
         self.text.pack(fill="both", expand=True, padx=14, pady=(0, 8))
 
+        # Нижняя панель: вставка, шаблоны, отмена, сохранить
         footer = ctk.CTkFrame(self.root, fg_color="transparent")
         footer.pack(fill="x", padx=14, pady=(0, 6))
 
@@ -174,7 +190,7 @@ class CaptureWindow:
         ).pack(fill="x", padx=14, pady=(0, 10))
 
     def _bind_paste_shortcuts(self) -> None:
-        """Bind Ctrl+V / Shift+Insert / right-click paste on the real tk Text widget."""
+        """Вешает Ctrl+V, Shift+Insert и правый клик «Вставить» на поле текста."""
 
         def on_paste(_event: tk.Event | None = None) -> str:
             self._paste_from_clipboard()
@@ -201,12 +217,13 @@ class CaptureWindow:
                 widget.bind(sequence, on_paste, add="+")
             widget.bind("<<Paste>>", on_paste, add="+")
 
-        # Right-click works best on the inner Text
+        # Правый клик удобнее на внутреннем tk.Text
         if inner is not None:
             inner.bind("<Button-3>", on_context_menu, add="+")
         self.text.bind("<Button-3>", on_context_menu, add="+")
 
     def _copy_selection(self) -> None:
+        """Копирует выделенный текст в буфер обмена."""
         try:
             selected = self.text.get("sel.first", "sel.last")
         except tk.TclError:
@@ -215,6 +232,7 @@ class CaptureWindow:
         self.root.clipboard_append(selected)
 
     def _cut_selection(self) -> None:
+        """Вырезает выделенный текст."""
         self._copy_selection()
         try:
             self.text.delete("sel.first", "sel.last")
@@ -222,6 +240,7 @@ class CaptureWindow:
             pass
 
     def _insert_at_cursor(self, text: str) -> None:
+        """Вставляет текст в позицию курсора (заменяя выделение)."""
         try:
             self.text.delete("sel.first", "sel.last")
         except tk.TclError:
@@ -230,7 +249,10 @@ class CaptureWindow:
         self.text.focus_set()
 
     def _paste_from_clipboard(self) -> None:
-        # Prefer image (screenshots / copy image), then file list, then text
+        """Вставка из буфера: сначала картинка, потом файлы, потом текст."""
+        # Порядок: скриншот/картинка → список файлов → обычный текст
+        from PIL import ImageGrab
+
         clipped = ImageGrab.grabclipboard()
         if isinstance(clipped, Image.Image):
             self._paste_image(clipped.copy())
@@ -271,6 +293,7 @@ class CaptureWindow:
         self.status_var.set("")
 
     def _paste_image(self, image: Image.Image, preferred_name: str | None = None) -> None:
+        """Кладёт картинку в очередь вложений и вставляет ![[имя]] в текст."""
         stamp = datetime.now().strftime("%Y%m%d%H%M%S")
         if preferred_name:
             name = preferred_name
@@ -299,7 +322,7 @@ class CaptureWindow:
         self.status_var.set("")
 
     def open_paint(self) -> None:
-        """Open paint dialog and append drawing as an Obsidian image embed."""
+        """Открывает окно рисования и добавляет рисунок как картинку в заметку."""
         if self.root.state() == "withdrawn":
             self.root.deiconify()
             self.root.lift()
@@ -313,6 +336,7 @@ class CaptureWindow:
         open_paint(self.root, on_done=on_done)
 
     def _toggle_voice(self) -> None:
+        """Старт/стоп записи голоса по кнопке микрофона."""
         if self._voice_busy:
             return
         if self._recorder is not None and self._recorder.recording:
@@ -321,7 +345,7 @@ class CaptureWindow:
             self._start_voice()
 
     def _redo_voice(self) -> None:
-        """Remove last voice insert and start a new recording."""
+        """Удаляет последнюю голосовую вставку и сразу пишет заново."""
         if self._voice_busy:
             return
         if self._last_voice_start and self._last_voice_end:
@@ -335,6 +359,7 @@ class CaptureWindow:
         self._start_voice()
 
     def _start_voice(self) -> None:
+        """Включает микрофон и меняет кнопку на «стоп»."""
         try:
             from voice import MicRecorder
         except ImportError:
@@ -360,6 +385,7 @@ class CaptureWindow:
         self.status_var.set("Запись…")
 
     def _stop_voice_and_transcribe(self) -> None:
+        """Останавливает запись и запускает расшифровку в фоне."""
         if self._recorder is None:
             return
         try:
@@ -401,6 +427,7 @@ class CaptureWindow:
         )
 
     def _on_voice_done(self, result) -> None:
+        """Вставляет распознанный текст в заметку."""
         self._voice_busy = False
         self.mic_btn.configure(
             text="🎙",
@@ -429,6 +456,7 @@ class CaptureWindow:
             self.redo_voice_btn.configure(state="disabled")
 
     def _on_voice_error(self, exc: BaseException) -> None:
+        """Показывает ошибку расшифровки пользователю."""
         self._voice_busy = False
         self.mic_btn.configure(
             text="🎙",
@@ -440,6 +468,7 @@ class CaptureWindow:
         messagebox.showerror("CtrlNote", f"Не удалось расшифровать:\n{exc}", parent=self.root)
 
     def _cancel_voice(self) -> None:
+        """Прерывает запись при закрытии окна."""
         if self._recorder is not None and self._recorder.recording:
             try:
                 self._recorder.stop()
@@ -454,6 +483,7 @@ class CaptureWindow:
         )
 
     def _center(self) -> None:
+        """Ставит окно примерно по центру экрана."""
         self.root.update_idletasks()
         width = self.root.winfo_width()
         height = self.root.winfo_height()
@@ -464,6 +494,7 @@ class CaptureWindow:
         self.root.geometry(f"+{x}+{y}")
 
     def ensure_vault(self) -> bool:
+        """Если vault не настроен — показывает мастер первичной настройки."""
         config = load_config()
         if is_configured(config):
             return True
@@ -481,15 +512,29 @@ class CaptureWindow:
         self.root.wait_window(dialog)
         return is_configured()
 
-    def _refresh_folders(self, preferred_relative: str | None = None) -> None:
+    def _refresh_folders(
+        self,
+        preferred_relative: str | None = None,
+        folders: list[str] | None = None,
+    ) -> None:
+        """Обновляет список папок vault в выпадающем меню."""
+        from note_saver import list_vault_folders
+
         config = load_config()
         vault = config.get("vault_path", "")
-        folders = list_vault_folders(vault) if vault else [""]
+        if folders is None:
+            folders = list_vault_folders(vault) if vault else [""]
 
         labels: list[str] = []
         self._folder_map.clear()
         for rel in folders:
-            label = "(корень vault)" if rel == "" else rel
+            if rel == "":
+                label = "(корень vault)"
+            elif rel == "(корень vault)":
+                # Чтобы не спутать с подписью корня vault
+                label = "./(корень vault)"
+            else:
+                label = rel
             labels.append(label)
             self._folder_map[label] = rel
 
@@ -504,6 +549,7 @@ class CaptureWindow:
         self.folder_var.set(selected)
 
     def _refresh_templates(self) -> None:
+        """Обновляет список шаблонов."""
         names = template_names()
         self.template_menu.configure(values=names)
         current = self.template_var.get()
@@ -511,6 +557,7 @@ class CaptureWindow:
             self.template_var.set(NONE_LABEL)
 
     def _on_template_chosen(self, choice: str) -> None:
+        """Подставляет текст выбранного шаблона в поле заметки."""
         if choice == NONE_LABEL:
             return
         tmpl = get_template_by_name(choice)
@@ -530,7 +577,7 @@ class CaptureWindow:
         self.text.focus_set()
 
     def open_templates_manager(self) -> None:
-        """CRUD UI for note templates."""
+        """Окно управления шаблонами: создать, править, удалить."""
         from templates import add_template, delete_template, update_template
 
         if self.root.state() == "withdrawn":
@@ -644,7 +691,8 @@ class CaptureWindow:
         ctk.CTkButton(btns, text="Закрыть", width=70, command=dialog.destroy).pack(pady=(16, 4))
 
     def show(self) -> None:
-        # Capture context BEFORE we steal focus
+        """Показывает окно заметки и подбирает папку по активному окну."""
+        # Сначала запоминаем контекст — потом наше окно перехватит фокус
         context_title = self._pending_context_title
         self._pending_context_title = None
         if context_title is None:
@@ -658,22 +706,7 @@ class CaptureWindow:
         if not self.ensure_vault():
             return
 
-        config = load_config()
-        preferred: str | None = None
-        if config.get("auto_folder", True):
-            try:
-                from context import resolve_folder
-
-                preferred = resolve_folder(
-                    config.get("vault_path", ""),
-                    title=context_title or "",
-                    create=True,
-                )
-            except Exception:  # noqa: BLE001
-                preferred = None
-
-        self._refresh_folders(preferred_relative=preferred)
-        self._refresh_templates()
+        # Сначала лёгкий сброс UI и показ окна — сканирование vault отложим.
         self.template_var.set(NONE_LABEL)
         self.text.delete("1.0", "end")
         self._pending_images.clear()
@@ -681,6 +714,20 @@ class CaptureWindow:
         self._last_voice_end = None
         self.redo_voice_btn.configure(state="disabled")
         self.status_var.set("")
+
+        # Подставим папку из прошлой сессии без сканирования vault (безопасно, если сохранят сразу).
+        config = load_config()
+        last = str(config.get("last_folder", "") or "")
+        self._folder_map = {"(корень vault)": ""}
+        labels = ["(корень vault)"]
+        if last:
+            self._folder_map[last] = last
+            labels.append(last)
+        self.folder_menu.configure(values=labels)
+        self.folder_var.set(last if last else "(корень vault)")
+
+        self._show_gen += 1
+        gen = self._show_gen
         self.root.deiconify()
         self.root.lift()
         self.root.attributes("-topmost", True)
@@ -689,17 +736,55 @@ class CaptureWindow:
         self.text.focus_set()
         self._visible = True
 
+        self.root.after(0, lambda: self._finish_show(gen, context_title or ""))
+
+    def _finish_show(self, gen: int, context_title: str) -> None:
+        """После показа окна: сканирует vault и подставляет папку по контексту."""
+        if gen != self._show_gen or not self._visible:
+            return
+
+        from note_saver import list_vault_folders
+
+        config = load_config()
+        vault = config.get("vault_path", "")
+        folders = list_vault_folders(vault) if vault else [""]
+        preferred: str | None = None
+        if config.get("auto_folder", True):
+            try:
+                from context import resolve_folder
+
+                preferred = resolve_folder(
+                    vault,
+                    title=context_title,
+                    create=True,
+                    folders=folders,
+                )
+            except Exception:  # noqa: BLE001
+                preferred = None
+
+        if preferred and preferred not in folders:
+            folders = [*folders, preferred]
+
+        if gen != self._show_gen or not self._visible:
+            return
+
+        self._refresh_folders(preferred_relative=preferred, folders=folders)
+        self._refresh_templates()
+
     def hide(self) -> None:
+        """Прячет окно (программа продолжает жить в трее)."""
+        self._show_gen += 1  # отменить отложенное завершение показа
         self._cancel_voice()
         self.root.withdraw()
         self._visible = False
         self._pending_images.clear()
 
     def toggle(self) -> None:
+        """По горячей клавише: показать или скрыть окно."""
         if self._visible and self.root.state() == "normal":
             self.hide()
         else:
-            # Snapshot active window ASAP (before our UI focuses)
+            # Сразу снимаем заголовок активного окна (до нашего фокуса)
             try:
                 from context import get_foreground_title
 
@@ -709,6 +794,7 @@ class CaptureWindow:
             self.show()
 
     def _save(self) -> None:
+        """Сохраняет заметку в vault и закрывает окно."""
         content = self.text.get("1.0", "end").strip()
         if not content and not self._pending_images:
             self.status_var.set("Пустая заметка — нечего сохранять")
@@ -731,13 +817,16 @@ class CaptureWindow:
         label = self.folder_var.get()
         relative = self._folder_map.get(label, "")
         try:
+            from note_saver import save_note
+            from vault_paths import VaultPathError
+
             path = save_note(
                 content or f"Вставка {datetime.now().strftime('%Y-%m-%d %H-%M')}",
                 config["vault_path"],
                 relative,
                 attachments=list(self._pending_images),
             )
-        except OSError as exc:
+        except (OSError, VaultPathError, ValueError) as exc:
             messagebox.showerror("CtrlNote", f"Не удалось сохранить:\n{exc}", parent=self.root)
             return
 
@@ -745,6 +834,7 @@ class CaptureWindow:
             try:
                 from daily_note import append_to_daily_file
                 from note_saver import title_from_content_line
+                from vault_paths import VaultPathError
 
                 first = next((ln.strip() for ln in content.splitlines() if ln.strip()), path.stem)
                 title = title_from_content_line(first) or path.stem
@@ -754,7 +844,7 @@ class CaptureWindow:
                     folder=str(config.get("daily_note_folder", "") or ""),
                     fmt=str(config.get("daily_note_format", "YYYY-MM-DD")),
                 )
-            except OSError:
+            except (OSError, VaultPathError, ValueError):
                 pass
 
         config["last_folder"] = relative
@@ -767,7 +857,7 @@ class CaptureWindow:
         self.hide()
 
     def open_settings(self) -> None:
-        """Settings: vault path, hotkey, autostart, voice."""
+        """Окно настроек: vault, хоткей, автозапуск, голос, daily note."""
         if self.root.state() == "withdrawn":
             self.root.deiconify()
             self.root.lift()
@@ -809,6 +899,8 @@ class CaptureWindow:
         )
 
         def browse() -> None:
+            from tkinter import filedialog
+
             path = filedialog.askdirectory(title="Выберите vault", parent=dialog)
             if path:
                 vault_var.set(path)
@@ -900,6 +992,7 @@ class CaptureWindow:
         footer.pack(fill="x", padx=16, pady=16)
 
         def save_settings() -> None:
+            """Записывает настройки на диск и применяет хоткей/автозапуск."""
             old_hotkey = str(config.get("hotkey", "ctrl+alt+n"))
             new_hotkey = hotkey_var.get().strip().lower() or "ctrl+alt+n"
             config["vault_path"] = vault_var.get().strip()
@@ -925,7 +1018,24 @@ class CaptureWindow:
                 )
                 return
             config["autostart"] = want_autostart
-            save_config(config)
+            try:
+                save_config(config)
+            except Exception as exc:  # noqa: BLE001 — SecretStorageError / IO
+                from config import SecretStorageError
+
+                if isinstance(exc, SecretStorageError):
+                    messagebox.showerror(
+                        "CtrlNote",
+                        f"Не удалось безопасно сохранить API-ключ:\n{exc}",
+                        parent=dialog,
+                    )
+                    return
+                messagebox.showerror(
+                    "CtrlNote",
+                    f"Не удалось сохранить настройки:\n{exc}",
+                    parent=dialog,
+                )
+                return
             if new_hotkey != old_hotkey and self.on_hotkey_changed:
                 try:
                     self.on_hotkey_changed()
@@ -948,9 +1058,11 @@ class CaptureWindow:
         )
 
     def run(self) -> None:
+        """Запускает цикл обработки событий окна (пока программа открыта)."""
         self.root.mainloop()
 
     def quit(self) -> None:
+        """Закрывает окно и завершает цикл интерфейса."""
         try:
             self.root.quit()
             self.root.destroy()

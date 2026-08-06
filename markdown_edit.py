@@ -1,4 +1,8 @@
-"""Markdown editing helpers for the capture textbox (Obsidian-like shortcuts)."""
+"""
+Горячие клавиши редактирования markdown в поле заметки (как в Obsidian).
+
+Ctrl+B — жирный, Ctrl+I — курсив, Enter — продолжение списка.
+"""
 
 from __future__ import annotations
 
@@ -6,22 +10,26 @@ import re
 import tkinter as tk
 from typing import Any
 
-# bullet: - * +   numbered: 1. 2)   space after marker optional
+# Распознаём строки списка: - пункт, * пункт, 1. пункт и т.п.
 _LIST_RE = re.compile(r"^(\s*)([-*+]|\d+[.)])(\s*)(.*)$")
 
-# Windows virtual-key codes (layout-independent)
+# Физические коды клавиш B и I (не зависят от русской/английской раскладки)
 _VK_B = 66
 _VK_I = 73
 
 
 def _inner_text(widget: Any) -> tk.Text:
-    """CTkTextbox wraps a real tk.Text as _textbox."""
+    """Достаёт настоящий виджет текста из обёртки CustomTkinter."""
     inner = getattr(widget, "_textbox", None)
     return inner if inner is not None else widget
 
 
 def toggle_wrap(widget: Any, marker: str) -> None:
-    """Wrap selection (or word/cursor) with marker, or unwrap if already wrapped."""
+    """
+    Оборачивает выделенный текст маркерами (** или *) или снимает их, если уже есть.
+
+    Если ничего не выделено — берёт слово под курсором или вставляет пустые маркеры.
+    """
     text = _inner_text(widget)
     try:
         start = text.index("sel.first")
@@ -35,10 +43,12 @@ def toggle_wrap(widget: Any, marker: str) -> None:
             if not selected.strip():
                 raise tk.TclError
         except tk.TclError:
+            # Нет выделения — ставим **|** и курсор посередине
             text.insert("insert", f"{marker}{marker}")
             text.mark_set("insert", f"insert-{len(marker)}c")
             return
 
+    # Уже обёрнуто — снимаем; иначе — оборачиваем
     if (
         selected.startswith(marker)
         and selected.endswith(marker)
@@ -56,11 +66,11 @@ def toggle_wrap(widget: Any, marker: str) -> None:
 
 
 def continue_list_on_return(widget: Any) -> str | None:
-    """If current line is a list item, continue it on Enter."""
+    """Если текущая строка — пункт списка, по Enter создаёт следующий пункт."""
     text = _inner_text(widget)
     line_start = text.index("insert linestart")
     line_end = text.index("insert lineend")
-    # Allow continue when cursor is at EOL or only trailing spaces after it
+    # Продолжаем список только если курсор в конце строки (или после пробелов)
     after = text.get("insert", line_end)
     if after.strip():
         return None
@@ -73,12 +83,12 @@ def continue_list_on_return(widget: Any) -> str | None:
     indent, marker, space, body = match.groups()
     gap = space if space else " "
 
+    # Пустой пункт списка — Enter «закрывает» список (удаляет маркер)
     if not body.strip():
         text.delete(line_start, line_end)
         return "break"
 
     next_marker = _next_marker(marker)
-    # Replace any trailing spaces after cursor, then new list line
     if after:
         text.delete("insert", line_end)
     text.insert("insert", f"\n{indent}{next_marker}{gap}")
@@ -86,6 +96,7 @@ def continue_list_on_return(widget: Any) -> str | None:
 
 
 def _next_marker(marker: str) -> str:
+    """Для «-» оставляет «-»; для «1.» даёт «2.» и т.д."""
     if marker in {"-", "*", "+"}:
         return marker
     num_match = re.match(r"(\d+)", marker)
@@ -96,9 +107,10 @@ def _next_marker(marker: str) -> str:
 
 
 def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
-    """Bind Ctrl+B/I (any keyboard layout) and list-continue on Enter.
+    """
+    Вешает Ctrl+B / Ctrl+I и продолжение списка на Enter.
 
-    Bind only once via CTkTextbox.bind (it forwards to the real Text).
+    Привязка один раз через CTkTextbox.bind (иначе жирный «мигает» туда-сюда).
     """
 
     def on_bold(_event: tk.Event | None = None) -> str:
@@ -110,7 +122,7 @@ def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
         return "break"
 
     def on_ctrl_key(event: tk.Event) -> str | None:
-        # Layout-independent: physical B / I keys
+        # По физическим клавишам — работает и на русской раскладке
         if event.keycode == _VK_B:
             return on_bold(event)
         if event.keycode == _VK_I:
@@ -120,8 +132,6 @@ def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
     def on_return(_event: tk.Event | None = None) -> str | None:
         return continue_list_on_return(textbox)
 
-    # CTkTextbox.bind → inner Text (do NOT also bind inner, or handlers run twice
-    # and bold wraps then unwraps = looks broken)
     textbox.bind("<Control-KeyPress>", on_ctrl_key)
     textbox.bind("<Control-b>", on_bold)
     textbox.bind("<Control-B>", on_bold)
@@ -130,7 +140,7 @@ def bind_markdown_shortcuts(root: Any, textbox: Any) -> None:
     textbox.bind("<Return>", on_return)
     textbox.bind("<KP_Enter>", on_return)
 
-    # Root fallback when focus is inside the textbox (Russian layout / focus quirks)
+    # Запасной вариант через корневое окно (фокус / раскладка)
     def on_root_ctrl(event: tk.Event) -> str | None:
         focus = root.focus_get()
         inner = getattr(textbox, "_textbox", None)

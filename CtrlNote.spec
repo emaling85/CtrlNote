@@ -1,3 +1,5 @@
+# Файл настроек PyInstaller для сборки CtrlNote.exe.
+# Обычно пересоздаётся скриптом build_exe.py — правьте осторожно.
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all

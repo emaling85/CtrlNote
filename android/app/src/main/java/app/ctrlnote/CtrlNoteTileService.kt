@@ -6,7 +6,12 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
+/**
+ * Плитка в шторке быстрых настроек Android.
+ * Нажатие открывает экран быстрой заметки.
+ */
 class CtrlNoteTileService : TileService() {
+    /** Обновляет внешний вид плитки, когда шторка открыта. */
     override fun onStartListening() {
         qsTile?.apply {
             state = Tile.STATE_INACTIVE
@@ -16,6 +21,7 @@ class CtrlNoteTileService : TileService() {
         }
     }
 
+    /** По нажатию запускает CaptureActivity и сворачивает шторку. */
     override fun onClick() {
         val intent = Intent(this, CaptureActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

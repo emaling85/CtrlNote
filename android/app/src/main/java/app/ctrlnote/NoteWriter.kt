@@ -9,7 +9,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Сохранение заметки в папку vault на Android (через Storage Access Framework).
+ * Пишет .md файл и PNG-рисунки рядом с ним.
+ */
 object NoteWriter {
+    /**
+     * Сохраняет текст и рисунки в vault.
+     * @return имя созданного markdown-файла
+     */
     fun saveNote(
         context: Context,
         treeUri: Uri,
@@ -39,7 +47,7 @@ object NoteWriter {
                 if (drawings.size == 1) "Drawing $stamp.png"
                 else "Drawing $stamp (${index + 1}).png",
             )
-            // Display name WITHOUT extension — SAF often appends it from MIME
+            // Имя без расширения — система часто дописывает его сама по MIME
             val png = root.createFile("image/png", pngName.removeSuffix(".png"))
                 ?: throw IOException("Не удалось создать $pngName")
             context.contentResolver.openOutputStream(png.uri)?.use { out ->
@@ -64,6 +72,7 @@ object NoteWriter {
         return md.name ?: mdName
     }
 
+    /** Подбирает незанятое имя файла (при конфликте добавляет « (2)» и т.д.). */
     private fun uniqueName(dir: DocumentFile, filename: String): String {
         val safe = filename
             .replace('\\', '/')

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Тексты интерфейса Android-версии CtrlNote -->
 <resources>
     <string name="app_name">CtrlNote</string>
     <string name="tile_label">CtrlNote</string>

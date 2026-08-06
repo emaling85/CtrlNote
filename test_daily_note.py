@@ -1,4 +1,6 @@
-"""Tests for daily note helpers."""
+"""
+Автотесты связи с ежедневной заметкой Obsidian.
+"""
 
 from __future__ import annotations
 

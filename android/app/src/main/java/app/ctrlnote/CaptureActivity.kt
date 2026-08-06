@@ -46,10 +46,14 @@ import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.delay
 
+/**
+ * Главный экран Android-версии: быстрый ввод заметки.
+ * Можно выбрать vault, написать текст, добавить рисунок и сохранить.
+ */
 class CaptureActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Keep capture snappy from quick settings
+        // Сразу показываем клавиатуру — удобно из быстрых настроек
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
 
         val prefs = VaultPrefs(this)
@@ -75,7 +79,7 @@ class CaptureActivity : ComponentActivity() {
                     focusRequester.requestFocus()
                     keyboard?.show()
                 } catch (_: IllegalStateException) {
-                    // FocusRequester not attached yet
+                    // Поле ещё не готово принять фокус
                 }
             }
 

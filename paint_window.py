@@ -1,4 +1,9 @@
-"""Paint dialog: pen, eraser, shapes, fill, screenshot bg, undo/redo → PIL Image."""
+"""
+Окно рисования для заметки.
+
+Перо, ластик, фигуры, заливка, фон из скриншота, отмена/повтор.
+Готовый рисунок вставляется в заметку как картинка.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +18,7 @@ from PIL import Image, ImageDraw, ImageGrab, ImageTk
 
 from ui_icon import apply_window_icon
 
+# Палитра цветов для кисти
 COLORS = [
     ("#111111", "Чёрный"),
     ("#ffffff", "Белый"),
@@ -24,17 +30,19 @@ COLORS = [
     ("#f1c40f", "Жёлтый"),
 ]
 
+# Размер холста в пикселях
 CANVAS_W = 720
 CANVAS_H = 420
 BG_RGB = (255, 255, 255)
 BG_HEX = "#ffffff"
 
+# Инструменты на панели
 TOOLS = ["Перо", "Ластик", "Линия", "Прямоуг", "Круг", "Заливка"]
 
 
 @dataclass
 class HistoryEntry:
-    """Either canvas item ids, or a full raster swap (fill / clear / screenshot bake)."""
+    """Шаг истории: либо фигуры на холсте, либо смена всей картинки (заливка/очистка/скрин)."""
 
     item_ids: list[int] = field(default_factory=list)
     before: Image.Image | None = None
@@ -42,11 +50,13 @@ class HistoryEntry:
 
 
 def drawing_filename(now: datetime | None = None) -> str:
+    """Имя файла для сохранённого рисунка."""
     stamp = (now or datetime.now()).strftime("%Y-%m-%d %H-%M-%S")
     return f"Drawing {stamp}.png"
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    """Переводит цвет #RRGGBB в тройку чисел (R, G, B)."""
     c = color.lstrip("#")
     if len(c) == 3:
         c = "".join(ch * 2 for ch in c)
@@ -60,7 +70,7 @@ def flood_fill(
     new_color: tuple[int, int, int],
     tol: int = 24,
 ) -> Image.Image:
-    """Bucket fill on RGB image; returns filled copy/work image."""
+    """Заливка области цветом (как ведёрко в Paint)."""
     work = img.convert("RGB")
     w, h = work.size
     if not (0 <= x < w and 0 <= y < h):
@@ -95,7 +105,7 @@ def composite_canvas(
     width: int,
     height: int,
 ) -> Image.Image:
-    """Draw canvas vector items over base image → RGB."""
+    """Склеивает фон и нарисованные линии/фигуры в одну картинку."""
     img = base.resize((width, height), Image.Resampling.LANCZOS).convert("RGB")
     draw = ImageDraw.Draw(img)
 
@@ -133,14 +143,15 @@ def composite_canvas(
     return img
 
 
-# Back-compat name used by tests
+# Старое имя для тестов
 def canvas_to_image(canvas: tk.Canvas, width: int, height: int) -> Image.Image:
+    """Превращает холст в картинку (белый фон + рисунок)."""
     blank = Image.new("RGB", (width, height), BG_RGB)
     return composite_canvas(blank, canvas, width, height)
 
 
 class PaintWindow:
-    """Modal paint UI. Calls on_done(PIL.Image) when user inserts into the note."""
+    """Окно рисования. По «Вставить в заметку» отдаёт картинку в заметку."""
 
     def __init__(
         self,
@@ -154,8 +165,8 @@ class PaintWindow:
         self._color = COLORS[0][0]
         self._tool = "Перо"
         self._thickness = 4
-        self._history: list[HistoryEntry] = []
-        self._redo: list[HistoryEntry] = []
+        self._history: list[HistoryEntry] = []  # отмена
+        self._redo: list[HistoryEntry] = []  # повтор
         self._current_ids: list[int] = []
         self._last: tuple[float, float] | None = None
         self._start: tuple[float, float] | None = None
@@ -181,6 +192,7 @@ class PaintWindow:
         self.dialog.focus_force()
         apply_window_icon(self.dialog)
 
+        # Строка инструментов (перо, ластик, фигуры…)
         row1 = ctk.CTkFrame(self.dialog, fg_color="transparent")
         row1.pack(fill="x", padx=12, pady=(12, 4))
 
@@ -193,6 +205,7 @@ class PaintWindow:
             height=28,
         ).pack(side="left", fill="x", expand=True)
 
+        # Цвета, толщина, undo/redo, скрин, вставка фона
         row2 = ctk.CTkFrame(self.dialog, fg_color="transparent")
         row2.pack(fill="x", padx=12, pady=(4, 4))
 
@@ -256,6 +269,7 @@ class PaintWindow:
         canvas_frame = ctk.CTkFrame(self.dialog, fg_color="#2a2a2a", corner_radius=8)
         canvas_frame.pack(fill="both", expand=True, padx=12, pady=6)
 
+        # Сам холст, по которому рисуют мышью
         self.canvas = tk.Canvas(
             canvas_frame,
             width=CANVAS_W,
@@ -298,6 +312,7 @@ class PaintWindow:
 
     @staticmethod
     def _fit_image(img: Image.Image, tw: int, th: int) -> Image.Image:
+        """Вписывает картинку в размер холста с полями."""
         img = img.convert("RGB")
         src_w, src_h = img.size
         scale = min(tw / src_w, th / src_h)
@@ -308,9 +323,10 @@ class PaintWindow:
         return canvas
 
     def _paint_bg(self) -> None:
+        """Рисует фоновую картинку на холсте."""
         w = int(self.canvas.winfo_width()) or CANVAS_W
         h = int(self.canvas.winfo_height()) or CANVAS_H
-        # On first pack winfo may be 1 — use defaults
+        # При первом показе размер может быть 1 — берём значения по умолчанию
         if w < 10:
             w = CANVAS_W
         if h < 10:
@@ -326,16 +342,19 @@ class PaintWindow:
         self.canvas.tag_lower("bg")
 
     def _pen_width(self) -> int:
+        """Толщина линии; у ластика чуть больше."""
         if self._tool == "Ластик":
             return max(self._thickness * 2, self._thickness + 6)
         return self._thickness
 
     def _draw_color(self) -> str:
+        """Цвет рисования; ластик = цвет фона."""
         if self._tool == "Ластик":
             return BG_HEX
         return self._color
 
     def _on_tool(self, value: str) -> None:
+        """Смена инструмента на панели."""
         self._tool = value
         cursors = {
             "Перо": "pencil",
@@ -348,6 +367,7 @@ class PaintWindow:
         self.canvas.configure(cursor=cursors.get(value, "arrow"))
 
     def _set_color(self, color: str) -> None:
+        """Выбор цвета кисти."""
         self._color = color
         if self._tool == "Ластик":
             self._tool = "Перо"
@@ -356,9 +376,10 @@ class PaintWindow:
         self._refresh_color_selection()
 
     def _refresh_color_selection(self) -> None:
+        """Подсвечивает выбранный цвет на палитре."""
         for hex_color, btn in self._color_buttons.items():
             selected = hex_color.lower() == self._color.lower()
-            # Always visible ring; selected = bright accent
+            # Рамка всегда видна; у выбранного — яркий акцент
             if selected:
                 border = "#3878fa"
                 width = 3
@@ -374,20 +395,24 @@ class PaintWindow:
             btn.configure(border_color=border, border_width=width)
 
     def _on_thick(self, value: float) -> None:
+        """Ползунок толщины линии."""
         self._thickness = max(1, int(round(float(value))))
         self._thick_label.configure(text=f"{self._thickness} px")
 
     def _push_items(self, ids: list[int]) -> None:
+        """Запоминает нарисованные объекты для Undo."""
         if not ids:
             return
         self._history.append(HistoryEntry(item_ids=list(ids)))
         self._redo.clear()
 
     def _push_raster(self, before: Image.Image, after: Image.Image) -> None:
+        """Запоминает смену всей картинки (заливка/очистка) для Undo."""
         self._history.append(HistoryEntry(before=before.copy(), after=after.copy()))
         self._redo.clear()
 
     def _down(self, event: tk.Event) -> None:
+        """Начало штриха / фигуры при нажатии мыши."""
         self._start = (event.x, event.y)
         self._last = (event.x, event.y)
         self._current_ids = []
@@ -414,6 +439,7 @@ class PaintWindow:
             self._current_ids.append(item)
 
     def _move(self, event: tk.Event) -> None:
+        """Продолжение рисования при движении мыши."""
         if self._start is None or self._tool == "Заливка":
             return
 
@@ -457,6 +483,7 @@ class PaintWindow:
             )
 
     def _up(self, event: tk.Event) -> None:
+        """Завершение штриха / фигуры при отпускании мыши."""
         if self._tool == "Заливка":
             return
 
@@ -468,7 +495,7 @@ class PaintWindow:
             return
 
         if self._preview_id is not None:
-            # Commit preview as real item (remove preview tag conceptually — already ink)
+            # Фиксируем превью как настоящий объект на холсте
             self.canvas.dtag(self._preview_id, "preview")
             self._push_items([self._preview_id])
             self._preview_id = None
@@ -476,6 +503,7 @@ class PaintWindow:
         self._last = None
 
     def _do_fill(self, x: int, y: int) -> None:
+        """Заливка области цветом в точке клика."""
         w = int(self.canvas.winfo_width()) or CANVAS_W
         h = int(self.canvas.winfo_height()) or CANVAS_H
         before = composite_canvas(self._base, self.canvas, w, h)
@@ -484,13 +512,14 @@ class PaintWindow:
         self._apply_raster(after)
 
     def _apply_raster(self, img: Image.Image) -> None:
-        """Bake image as new base and clear vector ink."""
+        """Делает картинку новым фоном и убирает векторные штрихи."""
         self._base = img.copy()
         for item in self.canvas.find_withtag("ink"):
             self.canvas.delete(item)
         self._paint_bg()
 
     def _undo(self) -> None:
+        """Отменить последний шаг."""
         if not self._history:
             return
         entry = self._history.pop()
@@ -498,7 +527,7 @@ class PaintWindow:
             self._apply_raster(entry.before)
             self._redo.append(entry)
             return
-        # Hide items (keep ids for redo)
+        # Прячем объекты (id оставляем для Redo)
         for item_id in entry.item_ids:
             try:
                 self.canvas.itemconfigure(item_id, state="hidden")
@@ -507,6 +536,7 @@ class PaintWindow:
         self._redo.append(entry)
 
     def _redo_action(self) -> None:
+        """Повторить отменённый шаг."""
         if not self._redo:
             return
         entry = self._redo.pop()
@@ -522,6 +552,7 @@ class PaintWindow:
         self._history.append(entry)
 
     def _clear(self) -> None:
+        """Очистить холст."""
         w = int(self.canvas.winfo_width()) or CANVAS_W
         h = int(self.canvas.winfo_height()) or CANVAS_H
         before = composite_canvas(self._base, self.canvas, w, h)
@@ -530,6 +561,7 @@ class PaintWindow:
         self._apply_raster(after)
 
     def _grab_screenshot(self) -> Image.Image | None:
+        """Снимает скриншот экрана для фона (без окна рисования)."""
         try:
             parent = self._parent
             was_withdrawn = parent.state() == "withdrawn"
@@ -561,6 +593,7 @@ class PaintWindow:
             return None
 
     def _set_background(self, img: Image.Image) -> None:
+        """Ставит картинку фоном холста."""
         w = int(self.canvas.winfo_width()) or CANVAS_W
         h = int(self.canvas.winfo_height()) or CANVAS_H
         if w < 10:
@@ -573,7 +606,7 @@ class PaintWindow:
         self._apply_raster(after)
 
     def _paste_background(self) -> str:
-        """Paste clipboard image (or screenshot file list) as canvas background."""
+        """Вставляет картинку из буфера обмена как фон."""
         clipped = ImageGrab.grabclipboard()
         img: Image.Image | None = None
         if isinstance(clipped, Image.Image):
@@ -589,12 +622,14 @@ class PaintWindow:
         return "break"
 
     def _rescreenshot(self) -> None:
+        """Делает новый скриншот и ставит его фоном."""
         grabbed = self._grab_screenshot()
         if grabbed is None:
             return
         self._set_background(grabbed)
 
     def _insert(self) -> None:
+        """Собрать картинку и передать её в заметку."""
         w = int(self.canvas.winfo_width()) or CANVAS_W
         h = int(self.canvas.winfo_height()) or CANVAS_H
         if w < 10:
@@ -613,4 +648,5 @@ def open_paint(
     *,
     with_screenshot: bool = False,
 ) -> PaintWindow:
+    """Открывает окно рисования; готовый рисунок уходит в on_done."""
     return PaintWindow(parent, on_done=on_done, with_screenshot=with_screenshot)
