@@ -1,47 +1,37 @@
 # CtrlNote
 
-Быстрые заметки в [Obsidian](https://obsidian.md) по горячей клавише на Windows (и MVP на Android).
+Быстрые заметки в [Obsidian](https://obsidian.md) по горячей клавише.
 
-Нажал **Ctrl+Alt+N** → написал / нарисовал / вставил картинку / наговорил → `.md` в vault.
+**Ctrl+Alt+N** → написал / нарисовал / вставил картинку / наговорил → `.md` в vault.
 
-## Возможности (Windows)
+## Скачать (Windows)
+
+→ **[CtrlNote-Setup.exe](https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe)**  
+(релизы: [Releases](https://github.com/emaling85/CtrlNote/releases))
+
+Ставится в `%LOCALAPPDATA%\CtrlNote`, ярлыки на стол и в Пуск. При первом запуске укажи папку vault.
+
+## Возможности
 
 - Трей, один экземпляр, автозапуск
 - Горячая клавиша, автопапка, шаблоны
 - Markdown: Ctrl+B / Ctrl+I / списки по Enter
-- **Рисунок (✎)** → PNG + `![[…]]` в Obsidian
+- Рисунок (✎) → PNG в Obsidian
 - Голос (local Whisper / OpenAI), daily note
-- Мастер первого запуска, Setup.exe
 
-## Android (MVP)
+## Разработка
 
-Папка [`android/`](android/) — Kotlin + Compose:
-
-- Экран заметки + paint
-- Плитка в шторке быстрых настроек (Quick Settings)
-- Запись в выбранную папку vault (SAF); синк с ПК — через твой Syncthing/облако
-
-Подробнее про телефон: [`android/README.md`](android/README.md).
-
-## Установка Windows
-
-### Один файл для друга
-1. `build_installer.bat`
-2. Скинь `dist\installer\CtrlNote-Setup.exe`
-
-### Из исходников
 ```powershell
 .\run.bat
 ```
 
-Тесты: `.\.venv\Scripts\python.exe -m unittest discover -s . -p "test_*.py" -v`
+Тесты: `.\.venv\Scripts\python.exe -m unittest discover -s . -p "test_*.py" -v`  
+Сборка установщика: `build_installer.bat` → `dist\installer\CtrlNote-Setup.exe` (в git не кладётся — только в Releases)
 
-Сборка: `build_exe.bat` → `install.bat`
+Android MVP: папка [`android/`](android/).
 
-## Продвижение
-
-План раздачи и тексты постов: [`PROMOTE.md`](PROMOTE.md). Лендинг: [`site/`](site/).
+Лендинг: [`site/`](site/).
 
 ## Лицензия
 
-Исходники закрыты; **Setup.exe можно использовать и скидывать друзьям** для личного пользования — см. [LICENSE](LICENSE).
+Исходники закрыты; Setup.exe можно ставить и скидывать друзьям для личного пользования — см. [LICENSE](LICENSE).
