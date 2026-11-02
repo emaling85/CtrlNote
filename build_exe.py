@@ -1,9 +1,13 @@
 """
 Сборка CtrlNote.exe (режим onedir — быстрее стартует, чем один большой файл).
+
+    python build_exe.py                    → обычный CtrlNote
+    python build_exe.py --edition trader   → CtrlNote Trader (с журналом сделок)
 """
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -14,6 +18,14 @@ ROOT = Path(__file__).resolve().parent
 
 def main() -> int:
     """Собирает папку dist/CtrlNote с CtrlNote.exe через PyInstaller."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--edition", choices=("standard", "trader"), default="standard")
+    edition = parser.parse_args().edition
+
+    # Метка редакции попадает внутрь exe (см. edition.py)
+    marker = ROOT / "build" / "edition" / "edition.txt"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(edition, encoding="utf-8")
     pyinstaller = ROOT / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller.exists():
         print("PyInstaller not found. Install with:")
@@ -33,6 +45,7 @@ def main() -> int:
         "CtrlNote",
         f"--icon={icon}",
         f"--add-data={ROOT / 'assets'}{assets_sep}assets",
+        f"--add-data={marker}{assets_sep}.",
         "--collect-all",
         "customtkinter",
         "--collect-all",
@@ -73,6 +86,12 @@ def main() -> int:
         "voice",
         "--hidden-import",
         "capture_window",
+        "--hidden-import",
+        "trade_window",
+        "--hidden-import",
+        "trade_journal",
+        "--hidden-import",
+        "edition",
         str(ROOT / "main.py"),
     ]
     print("Running:", " ".join(cmd))
@@ -88,7 +107,7 @@ def main() -> int:
             shutil.copy2(src, exe.parent / name)
 
     if exe.exists():
-        print(f"\nOK: {exe}")
+        print(f"\nOK ({edition}): {exe}")
         print("Fast start: onedir (folder dist\\CtrlNote\\).")
         print("Install: install.bat  ->  %LOCALAPPDATA%\\CtrlNote")
         print("Close old CtrlNote and re-enable autostart in settings.")

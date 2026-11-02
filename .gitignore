@@ -9,7 +9,6 @@ recordings/
 dist/
 build/
 *.spec
-!CtrlNote.spec
 android/.gradle/
 android/**/build/
 android/.idea/
@@ -24,3 +23,5 @@ debug_security_repro*.py
 debug-*.log
 .DS_Store
 Thumbs.db
+trade_options.json
+ui_toolbar.py

@@ -51,6 +51,8 @@ class CtrlNoteApp:
         )
         self.icon = None  # иконка в системном трее
         self._hotkey = None  # слушатель горячей клавиши
+        self._trade_hotkey = None  # слушатель хоткея журнала сделок
+        self._trade_window = None  # окно сделки создаём при первом вызове
         self._last_saved = ""  # путь к последней сохранённой заметке
 
     def _set_window_icon(self) -> None:
@@ -66,6 +68,55 @@ class CtrlNoteApp:
         self._last_saved = path
         if self.icon:
             self.icon.title = t("saved_tray", name=Path(path).name)
+
+    def _on_trade_saved(self, path: str) -> None:
+        """После записи сделки — подсказка у иконки в трее."""
+        from i18n import t
+
+        self._last_saved = path
+        if self.icon:
+            self.icon.title = t("trade_saved_tray", name=Path(path).stem)
+
+    def _get_trade_window(self):
+        """Окно журнала сделок (создаётся один раз, дальше только показывается)."""
+        from i18n import get_language
+
+        # Язык сменили в настройках — пересоздаём окно с новыми подписями
+        if self._trade_window is not None and self._trade_window.lang != get_language():
+            self._trade_window.win.destroy()
+            self._trade_window = None
+        if self._trade_window is None:
+            from trade_window import TradeWindow
+
+            self._trade_window = TradeWindow(self.window.root, on_saved=self._on_trade_saved)
+            self._trade_window.on_hotkey_changed = self._register_trade_hotkey
+        return self._trade_window
+
+    def _toggle_trade(self) -> None:
+        self._get_trade_window().toggle()
+
+    def _show_trade(self) -> None:
+        self._get_trade_window().show()
+
+    def _register_trade_hotkey(self) -> None:
+        """Регистрирует хоткей журнала трейдера (по умолчанию Ctrl+Alt+T)."""
+        from config import load_config
+        from edition import is_trader
+        from hotkey_win import GlobalHotkey
+
+        hotkey = (load_config().get("trade_hotkey") or "ctrl+alt+t").strip().lower()
+        if self._trade_hotkey is not None:
+            self._trade_hotkey.stop()
+            self._trade_hotkey = None
+        if not is_trader():
+            return
+        try:
+            self._trade_hotkey = GlobalHotkey(hotkey, lambda: self._schedule(self._toggle_trade))
+            self._trade_hotkey.start()
+            print(f"Trade hotkey registered: {hotkey}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"Failed to register trade hotkey '{hotkey}': {exc}", file=sys.stderr)
+            self._trade_hotkey = None
 
     def _schedule(self, callback) -> None:
         """Ставит действие в очередь главного потока интерфейса (безопасно для UI)."""
@@ -102,24 +153,48 @@ class CtrlNoteApp:
                     print(f"Fallback hotkey failed: {fallback_exc}", file=sys.stderr)
                     self._hotkey = None
 
-    def _build_tray(self):
-        """Собирает меню правого клика по иконке в трее."""
+    def _build_menu(self):
+        """Меню правого клика по иконке в трее (на текущем языке)."""
         import pystray
+        from edition import is_trader
         from i18n import t
 
-        menu = pystray.Menu(
-            pystray.MenuItem(t("new_note"), lambda: self._schedule(self.window.show), default=True),
+        items = [pystray.MenuItem(t("new_note"), lambda: self._schedule(self.window.show), default=True)]
+        if is_trader():
+            items.append(pystray.MenuItem(t("trade_new"), lambda: self._schedule(self._show_trade)))
+        items += [
             pystray.MenuItem(t("settings"), lambda: self._schedule(self.window.open_settings)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("exit"), self._quit),
-        )
-        return pystray.Icon("CtrlNote", _load_icon(), "CtrlNote", menu)
+        ]
+        return pystray.Menu(*items)
+
+    def _build_tray(self):
+        """Собирает иконку в трее."""
+        import pystray
+        from edition import app_name
+
+        return pystray.Icon("CtrlNote", _load_icon(), app_name(), self._build_menu())
+
+    def _after_onboarding(self) -> None:
+        """Мастер закрыт: язык мог смениться — обновляем подписи, трей и хоткеи."""
+        from i18n import init_from_config
+
+        init_from_config()
+        self.window._apply_ui_language()  # noqa: SLF001
+        if self.icon:
+            self.icon.menu = self._build_menu()
+            self.icon.update_menu()
+        self._register_hotkey()
+        self._register_trade_hotkey()
 
     def _quit(self, icon=None, item=None) -> None:  # noqa: ANN001, ARG002
         """Полностью закрывает приложение: хоткей, трей и окно."""
-        if self._hotkey is not None:
-            self._hotkey.stop()
-            self._hotkey = None
+        for listener in (self._hotkey, self._trade_hotkey):
+            if listener is not None:
+                listener.stop()
+        self._hotkey = None
+        self._trade_hotkey = None
         if self.icon:
             self.icon.stop()
         self._schedule(self.window.quit)
@@ -128,6 +203,7 @@ class CtrlNoteApp:
         """После старта цикла окна: иконка, хоткей, трей (чтобы первый кадр был лёгким)."""
         self._set_window_icon()
         self._register_hotkey()
+        self._register_trade_hotkey()
         self.icon = self._build_tray()
         self.window.root.after(200, self._first_run_check)
 
@@ -152,7 +228,7 @@ class CtrlNoteApp:
 
         dialog = run_onboarding(
             self.window.root,
-            on_done=self._register_hotkey,
+            on_done=self._after_onboarding,
         )
         self.window.root.wait_window(dialog)
         self.window.hide()

@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <!--
-  Лендинг CtrlNote: страница «о программе» для сайта/документации.
-  Ниже — разметка и стили; логики приложения здесь нет.
+  CtrlNote landing page (GitHub Pages). Static HTML/CSS, no build step.
 -->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CtrlNote — fast notes into Obsidian</title>
-  <meta name="description" content="Ctrl+Alt+N → note in your Obsidian vault. Windows tray app with EN/RU UI, voice, drawing, and images." />
+  <meta name="description" content="Ctrl+Alt+N → note in your Obsidian vault. A Windows tray app for text, voice, drawings and screenshots. CtrlNote Trader adds a trading journal on Ctrl+Alt+T." />
   <meta property="og:title" content="CtrlNote" />
-  <meta property="og:description" content="Fast Obsidian notes from a global hotkey — text, voice, draw, paste." />
+  <meta property="og:description" content="Fast Obsidian notes from a global hotkey. Plus CtrlNote Trader, a 20-second trading journal." />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://emaling85.github.io/CtrlNote/screenshots/notes-en.png" />
   <link rel="icon" href="icon.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg0: #0c1220;
@@ -25,6 +25,12 @@
       --text: #e8eefc;
       --muted: #9aabc8;
       --line: rgba(232, 238, 252, 0.12);
+      --t-bg: #0b0e11;
+      --t-panel: #12161c;
+      --t-line: #262c35;
+      --green: #0ecb81;
+      --red: #f6465d;
+      --yellow: #f0b90b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
@@ -34,54 +40,45 @@
       color: var(--text);
       background:
         radial-gradient(ellipse 80% 60% at 70% -10%, rgba(56, 120, 250, 0.35), transparent 55%),
-        radial-gradient(ellipse 50% 40% at 10% 80%, rgba(56, 120, 250, 0.12), transparent 50%),
-        linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #0a101c);
-      line-height: 1.5;
+        radial-gradient(ellipse 50% 40% at 10% 40%, rgba(56, 120, 250, 0.12), transparent 50%),
+        linear-gradient(165deg, var(--bg0), var(--bg1) 45%, #0a101c 70%, var(--t-bg));
+      line-height: 1.55;
     }
-    .wrap {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 4.5rem 1.5rem 5rem;
-    }
-    .brand {
-      display: flex;
+    img { max-width: 100%; display: block; }
+    a { color: inherit; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* hero */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 3rem;
       align-items: center;
-      gap: 0.85rem;
-      margin-bottom: 2.25rem;
-      animation: rise 0.7s ease both;
+      padding: 5rem 0 4rem;
     }
-    .brand img {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
-      box-shadow: 0 12px 40px rgba(56, 120, 250, 0.35);
-    }
+    .brand { display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.75rem; animation: rise 0.7s ease both; }
+    .brand img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 12px 40px rgba(56, 120, 250, 0.35); }
     .brand h1 {
       font-family: "Instrument Serif", Georgia, serif;
-      font-size: clamp(2.4rem, 8vw, 3.4rem);
+      font-size: clamp(2.4rem, 7vw, 3.4rem);
       font-weight: 400;
       letter-spacing: -0.02em;
       line-height: 1;
     }
     .lead {
-      font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+      font-size: clamp(1.15rem, 3vw, 1.45rem);
       color: var(--muted);
-      max-width: 32ch;
+      max-width: 30ch;
       margin-bottom: 1.75rem;
       animation: rise 0.7s 0.08s ease both;
     }
     .lead strong { color: var(--text); font-weight: 700; }
-    .cta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      margin-bottom: 3.5rem;
-      animation: rise 0.7s 0.16s ease both;
-    }
+    .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; animation: rise 0.7s 0.16s ease both; }
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 0.5rem;
       padding: 0.85rem 1.35rem;
       border-radius: 10px;
       font-weight: 700;
@@ -90,65 +87,99 @@
       transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
     }
     .btn:hover { transform: translateY(-1px); }
-    .btn-primary {
-      background: var(--blue);
-      color: #fff;
-    }
+    .btn-primary { background: var(--blue); color: #fff; }
     .btn-primary:hover { background: var(--blue-dim); }
-    .btn-ghost {
-      background: transparent;
-      color: var(--text);
-      border: 1px solid var(--line);
-    }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
     .btn-ghost:hover { border-color: rgba(232, 238, 252, 0.35); }
-    .flow {
-      border-top: 1px solid var(--line);
-      padding-top: 2.5rem;
-      animation: rise 0.7s 0.24s ease both;
+    .hint { margin-top: 0.9rem; font-size: 0.85rem; color: var(--muted); animation: rise 0.7s 0.2s ease both; }
+    .shot {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      animation: rise 0.8s 0.2s ease both;
     }
-    .flow h2 {
+
+    /* sections */
+    section { padding: 3.5rem 0; border-top: 1px solid var(--line); }
+    h2 {
       font-family: "Instrument Serif", Georgia, serif;
-      font-size: 1.75rem;
+      font-size: clamp(1.9rem, 4.5vw, 2.4rem);
       font-weight: 400;
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
     }
-    .steps {
-      list-style: none;
-      display: grid;
-      gap: 0.85rem;
-      color: var(--muted);
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.1rem 1.2rem;
     }
-    .steps li {
-      display: grid;
-      grid-template-columns: 2rem 1fr;
-      gap: 0.65rem;
-      align-items: start;
+    .card h3 { font-size: 1rem; margin-bottom: 0.35rem; }
+    .card p { color: var(--muted); font-size: 0.93rem; }
+    kbd {
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 0.85em;
+      padding: 0.08em 0.4em;
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.05);
     }
-    .steps b {
-      color: var(--blue);
-      font-variant-numeric: tabular-nums;
+
+    /* trader */
+    .trader {
+      background: var(--t-bg);
+      border-top: 3px solid var(--yellow);
+      padding: 4rem 0;
+      margin-top: 1rem;
     }
-    .steps span { color: var(--text); }
-    .features {
-      margin-top: 2.25rem;
-      display: grid;
-      gap: 0.65rem;
-      color: var(--muted);
+    .trader .tag {
+      font-family: "JetBrains Mono", Consolas, monospace;
+      color: var(--yellow);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      font-size: 0.9rem;
+      margin-bottom: 0.6rem;
+    }
+    .trader h2 { margin-bottom: 0.75rem; }
+    .trader .sub { color: #848e9c; max-width: 60ch; margin-bottom: 2rem; }
+    .trader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 2.5rem; }
+    .trader-grid img { border-radius: 12px; border: 1px solid var(--t-line); }
+    .ticks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.9rem 2rem; list-style: none; margin-bottom: 2.5rem; }
+    .ticks li { color: #c7cdd6; font-size: 0.95rem; padding-left: 1.4rem; position: relative; }
+    .ticks li::before { content: "▲"; color: var(--green); position: absolute; left: 0; font-size: 0.75rem; top: 0.25rem; }
+    .ticks li.down::before { content: "▼"; color: var(--red); }
+    .ticks b { color: #fff; }
+    .pnl {
+      font-family: "JetBrains Mono", Consolas, monospace;
+      display: inline-flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      background: var(--t-panel);
+      border: 1px solid var(--t-line);
+      border-radius: 10px;
+      padding: 0.8rem 1.1rem;
+      margin-bottom: 2rem;
       font-size: 0.95rem;
     }
-    .features li { list-style: none; padding-left: 0; color: var(--text); }
-    .features li::before {
-      content: "·";
-      color: var(--blue);
-      font-weight: 700;
-      margin-right: 0.55rem;
-    }
-    .note {
-      margin-top: 2.5rem;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-    .note a { color: var(--blue); }
+    .pnl .up { color: var(--green); font-weight: 700; }
+    .pnl .dn { color: var(--red); font-weight: 700; }
+    .pnl .mut { color: #848e9c; }
+    .btn-trader { background: var(--green); color: var(--t-bg); }
+    .btn-trader:hover { background: #0bb574; }
+    .btn-trader-ghost { border: 1px solid var(--t-line); color: #eaecef; }
+
+    /* download */
+    .editions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .edition { border: 1px solid var(--line); border-radius: 14px; padding: 1.4rem; background: rgba(255, 255, 255, 0.03); display: flex; flex-direction: column; gap: 0.9rem; }
+    .edition.t { border-color: rgba(240, 185, 11, 0.4); background: rgba(240, 185, 11, 0.04); }
+    .edition h3 { font-size: 1.15rem; }
+    .edition p { color: var(--muted); font-size: 0.93rem; flex: 1; }
+    .edition .btn { align-self: flex-start; }
+
+    footer { padding: 2.5rem 0 3.5rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); }
+    footer a { color: var(--blue); }
+
     @keyframes rise {
       from { opacity: 0; transform: translateY(14px); }
       to { opacity: 1; transform: translateY(0); }
@@ -156,41 +187,100 @@
     @media (prefers-reduced-motion: reduce) {
       * { animation: none !important; transition: none !important; }
     }
+    @media (max-width: 820px) {
+      .hero, .trader-grid, .editions { grid-template-columns: 1fr; }
+      .hero { padding-top: 3rem; gap: 2rem; }
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="brand">
-      <img src="icon.png" width="56" height="56" alt="" />
-      <h1>CtrlNote</h1>
+  <main>
+    <div class="wrap hero">
+      <div>
+        <div class="brand">
+          <img src="icon.png" width="56" height="56" alt="" />
+          <h1>CtrlNote</h1>
+        </div>
+        <p class="lead">
+          Press <strong>Ctrl+Alt+N</strong>, then write, draw, paste or speak.
+          The note is already in Obsidian.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe">Download for Windows</a>
+          <a class="btn btn-ghost" href="#trader">CtrlNote Trader →</a>
+        </div>
+        <p class="hint">Free and open source · Windows 10/11 · No account</p>
+      </div>
+      <img class="shot" src="screenshots/notes-en.png" width="560" height="400" alt="CtrlNote quick note window with a short Markdown note" />
     </div>
-    <p class="lead">
-      Press <strong>Ctrl+Alt+N</strong> — write, draw, paste, or speak —
-      the note is already in Obsidian.
-    </p>
-    <div class="cta">
-      <a class="btn btn-primary" id="download" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe">Download for Windows</a>
-      <a class="btn btn-ghost" href="https://github.com/emaling85/CtrlNote" rel="noopener">GitHub</a>
-    </div>
-    <section class="flow" aria-labelledby="how">
-      <h2 id="how">How it works</h2>
-      <ol class="steps">
-        <li><b>1</b><span>Pick your Obsidian vault on first launch</span></li>
-        <li><b>2</b><span>Press Ctrl+Alt+N from any app</span></li>
-        <li><b>3</b><span>Type, paste a screenshot, draw, or dictate</span></li>
-        <li><b>4</b><span>A .md file lands in the right vault folder</span></li>
-      </ol>
-      <ul class="features">
-        <li>English / Russian UI — switch in Settings</li>
-        <li>Bold &amp; italic as you type (Ctrl+B / Ctrl+I)</li>
-        <li>Local Whisper or OpenAI voice, language separate from UI</li>
-        <li>Drawing tool and clipboard images → PNG attachments</li>
-      </ul>
-      <p class="note">
-        Free for personal use ·
-        <a href="https://github.com/emaling85/CtrlNote/releases">All releases</a>
-      </p>
+
+    <section class="wrap" aria-labelledby="how">
+      <h2 id="how">Capture first, organize later</h2>
+      <div class="grid">
+        <div class="card"><h3>One hotkey, any app</h3><p><kbd>Ctrl+Alt+N</kbd> opens a small window on top of whatever you're doing. <kbd>Ctrl+Enter</kbd> saves, <kbd>Esc</kbd> hides.</p></div>
+        <div class="card"><h3>Lands in the right folder</h3><p>Pick a vault folder, or let CtrlNote guess it from the active window.</p></div>
+        <div class="card"><h3>Voice, offline</h3><p>Dictate with local Whisper. Your audio never leaves your PC unless you choose OpenAI.</p></div>
+        <div class="card"><h3>Draw &amp; paste</h3><p>Sketch on a canvas or paste a screenshot. It's saved as a PNG next to the note.</p></div>
+        <div class="card"><h3>Plain Markdown</h3><p>Ordinary <code>.md</code> files with readable names. No database, no lock-in.</p></div>
+        <div class="card"><h3>English &amp; Russian</h3><p>Choose the language on first launch, then switch any time in Settings.</p></div>
+      </div>
+    </section>
+
+    <section class="trader" id="trader" aria-labelledby="trader-title">
+      <div class="wrap">
+        <p class="tag">◢ CTRLNOTE TRADER</p>
+        <h2 id="trader-title">A trading journal you'll actually keep</h2>
+        <p class="sub">
+          Built for fast markets like Solana memecoins. Hit <kbd>Ctrl+Alt+T</kbd> right after you close a position,
+          pick profit or loss, tap a few chips, and you're back to the chart in about 20 seconds.
+        </p>
+        <div class="pnl" aria-label="Example header">
+          <span class="mut">TODAY</span><span class="up">+0.38 SOL</span><span class="mut">3 trades · WR 67%</span><span class="dn">▼ 3 losses in a row → take a break?</span>
+        </div>
+        <div class="trader-grid">
+          <img src="screenshots/trade-step1-en.png" width="640" height="688" alt="Step one: choose Profit, Loss or Breakeven" loading="lazy" />
+          <img src="screenshots/trade-form-en.png" width="640" height="688" alt="Step two: trade details with live PnL in SOL, USD and percent" loading="lazy" />
+        </div>
+        <ul class="ticks">
+          <li><b>Live PnL</b> in SOL, USD and %. The SOL price is fetched for you.</li>
+          <li><b>Contract address</b> auto-filled from your clipboard.</li>
+          <li><b>Market cap in → out</b>, stop, platform, risk and a ★ execution score.</li>
+          <li><b>Your own chips</b> for setups, emotions and mistakes. Add or remove any of them.</li>
+          <li><b>One note per trade</b> with Obsidian properties, plus chart screenshots.</li>
+          <li><b>📊 Trade journal</b> note with stats by day, setup, mistake and emotion. No plugins.</li>
+          <li class="down"><b>Anti-tilt:</b> a red warning after 3 losses in a row.</li>
+          <li class="down"><b>What mistakes cost you</b>, in SOL, so you stop repeating them.</li>
+        </ul>
+        <div class="cta">
+          <a class="btn btn-trader" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Trader-Setup.exe">Download CtrlNote Trader</a>
+          <a class="btn btn-trader-ghost" href="https://github.com/emaling85/CtrlNote#ctrlnote-trader">How it works</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" id="download" aria-labelledby="dl">
+      <h2 id="dl">Pick your edition</h2>
+      <div class="editions">
+        <div class="edition">
+          <h3>CtrlNote</h3>
+          <p>Quick notes into Obsidian: text, voice, drawings and screenshots from one hotkey.</p>
+          <a class="btn btn-primary" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Setup.exe">CtrlNote-Setup.exe</a>
+        </div>
+        <div class="edition t">
+          <h3>CtrlNote Trader</h3>
+          <p>Everything in CtrlNote plus the trading journal on <kbd>Ctrl+Alt+T</kbd>. Install it over CtrlNote at any time; your settings stay.</p>
+          <a class="btn btn-trader" href="https://github.com/emaling85/CtrlNote/releases/latest/download/CtrlNote-Trader-Setup.exe">CtrlNote-Trader-Setup.exe</a>
+        </div>
+      </div>
+      <p class="hint">Windows SmartScreen may warn about an unsigned installer: More info → Run anyway.</p>
     </section>
   </main>
+
+  <footer class="wrap">
+    MIT licensed · Everything stays on your PC ·
+    <a href="https://github.com/emaling85/CtrlNote">Source on GitHub</a> ·
+    <a href="https://github.com/emaling85/CtrlNote/releases">All releases</a> ·
+    <a href="https://github.com/emaling85/CtrlNote/blob/main/CHANGELOG.md">Changelog</a>
+  </footer>
 </body>
 </html>

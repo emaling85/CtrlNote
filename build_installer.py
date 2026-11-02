@@ -1,7 +1,9 @@
 """
-Сборка установщика CtrlNote-Setup.exe.
+Сборка установщика.
 
 Упаковывает dist/CtrlNote в zip и вшивает его в мастер установки.
+Имя файла зависит от редакции, собранной build_exe.py:
+CtrlNote-Setup.exe или CtrlNote-Trader-Setup.exe.
 """
 
 from __future__ import annotations
@@ -16,7 +18,16 @@ ROOT = Path(__file__).resolve().parent
 DIST_APP = ROOT / "dist" / "CtrlNote"
 OUT_DIR = ROOT / "dist" / "installer"
 ZIP_PATH = OUT_DIR / "app.zip"
-SETUP_NAME = "CtrlNote-Setup"
+
+
+def _setup_name() -> str:
+    """Имя установщика по метке редакции из последней сборки."""
+    marker = ROOT / "build" / "edition" / "edition.txt"
+    try:
+        trader = marker.read_text(encoding="utf-8").strip() == "trader"
+    except OSError:
+        trader = False
+    return "CtrlNote-Trader-Setup" if trader else "CtrlNote-Setup"
 
 
 def _zip_app() -> None:
@@ -40,6 +51,7 @@ def _zip_app() -> None:
 def main() -> int:
     """Собирает CtrlNote-Setup.exe с вложенным app.zip."""
     _zip_app()
+    setup_name = _setup_name()
 
     pyinstaller = ROOT / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller.exists():
@@ -49,7 +61,7 @@ def main() -> int:
     icon = ROOT / "assets" / "icon.ico"
     sep = ";" if sys.platform == "win32" else ":"
     # Убираем старые файлы setup, чтобы не было конфликта имён
-    for stale in (ROOT / "dist" / f"{SETUP_NAME}.exe", ROOT / "build" / SETUP_NAME):
+    for stale in (ROOT / "dist" / f"{setup_name}.exe", ROOT / "build" / setup_name):
         if stale.is_file():
             stale.unlink()
         elif stale.is_dir():
@@ -62,7 +74,7 @@ def main() -> int:
         "--windowed",
         "--onefile",
         "--name",
-        SETUP_NAME,
+        setup_name,
         f"--icon={icon}",
         f"--add-data={ZIP_PATH}{sep}.",
         str(ROOT / "setup_wizard.py"),
@@ -72,12 +84,12 @@ def main() -> int:
     if result.returncode != 0:
         return result.returncode
 
-    built = ROOT / "dist" / f"{SETUP_NAME}.exe"
+    built = ROOT / "dist" / f"{setup_name}.exe"
     if not built.exists():
         print("Setup exe not found", file=sys.stderr)
         return 1
 
-    final = OUT_DIR / f"{SETUP_NAME}.exe"
+    final = OUT_DIR / f"{setup_name}.exe"
     shutil.copy2(built, final)
     # Иконка рядом с setup — красивее в Проводнике
     if icon.exists():

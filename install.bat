@@ -18,7 +18,8 @@ echo Закройте CtrlNote (трей → Выход), если запуще�
 timeout /t 2 /nobreak >nul
 
 mkdir "%DEST%" 2>nul
-robocopy "%SRC_DIR%" "%DEST%" /MIR /NFL /NDL /NJH /NJS /nc /ns /np >nul
+REM /XF и /XD — не трогаем настройки и данные пользователя при обновлении
+robocopy "%SRC_DIR%" "%DEST%" /MIR /XF config.json templates.json trade_options.json /XD recordings /NFL /NDL /NJH /NJS /nc /ns /np >nul
 if errorlevel 8 (
   echo Не удалось скопировать. Закройте CtrlNote и повторите.
   exit /b 1

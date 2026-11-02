@@ -34,7 +34,7 @@ class VersionTests(unittest.TestCase):
 
 class ExampleConfigTests(unittest.TestCase):
     def test_example_exists_and_has_vault(self) -> None:
-        path = Path(__file__).resolve().parent / "config.example.json"
+        path = Path(__file__).resolve().parent.parent / "config.example.json"
         self.assertTrue(path.is_file())
         text = path.read_text(encoding="utf-8")
         self.assertIn("vault_path", text)

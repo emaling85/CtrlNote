@@ -113,6 +113,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "append_daily_note": False,  # писать ссылку в файл ежедневной заметки
     "daily_note_folder": "",  # папка для daily notes
     "daily_note_format": "YYYY-MM-DD",  # формат имени файла дня
+    "trade_hotkey": "ctrl+alt+t",  # окно журнала трейдера
+    "trade_vault_path": "",  # vault для сделок ("" = тот же, что для заметок)
+    "trade_folder": "",  # папка карточек сделок ("" = Сделки / Trades по языку)
+    "trade_attachments_folder": "",  # папка скриншотов ("" = Фотки / Screenshots по языку)
+    "trade_platform": "Axiom",  # последняя выбранная платформа
+    "trade_sol_usd": 0,  # последний известный курс SOL (если нет сети)
 }
 
 

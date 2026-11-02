@@ -16,6 +16,8 @@ from pathlib import Path
 
 APP_NAME = "CtrlNote"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
+# Файлы пользователя в папке программы — переустановка их не трогает
+USER_DATA = ("config.json", "templates.json", "trade_options.json", "recordings")
 
 
 def _safe_extractall(zf: zipfile.ZipFile, dest: Path) -> None:
@@ -55,6 +57,30 @@ def _payload_zip() -> Path:
         if candidate.exists():
             return candidate
     raise FileNotFoundError("app.zip not found — run build_installer.py first")
+
+
+def _payload_edition() -> str:
+    """Какая редакция внутри app.zip: 'trader' или 'standard'."""
+    try:
+        with zipfile.ZipFile(_payload_zip()) as zf:
+            for name in zf.namelist():
+                if name.endswith("edition.txt"):
+                    return zf.read(name).decode("utf-8").strip().lower()
+    except (OSError, zipfile.BadZipFile, FileNotFoundError):
+        pass
+    return "standard"
+
+
+def _close_running_app() -> None:
+    """Закрывает запущенный CtrlNote, иначе Windows не даст заменить файлы."""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    import time
+
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    subprocess.run(["taskkill", "/F", "/IM", "CtrlNote.exe"], capture_output=True, creationflags=flags)
+    time.sleep(1)
 
 
 def _create_shortcut(lnk: Path, target: Path, workdir: Path, icon: Path | None) -> None:
@@ -128,26 +154,20 @@ def install(
         if progress:
             progress(msg)
 
+    report("Closing CtrlNote…")
+    _close_running_app()
     report("Extracting…")
     if dest.exists():
-        # Сохраняем старый config.json при переустановке
-        cfg = dest / "config.json"
-        cfg_backup = None
-        if cfg.exists():
-            # Временное имя бэкапа (не фиксированное)
-            _fd, _tmp_name = tempfile.mkstemp(prefix="ctrlnote-cfg-", suffix=".json")
-            os.close(_fd)
-            cfg_backup = Path(_tmp_name)
-            shutil.copy2(cfg, cfg_backup)
+        # При переустановке сохраняем данные пользователя: настройки, шаблоны, чипы журнала, записи
+        backup = Path(tempfile.mkdtemp(prefix="ctrlnote-keep-"))
+        kept = [name for name in USER_DATA if (dest / name).exists()]
+        for name in kept:
+            shutil.move(str(dest / name), str(backup / name))
         shutil.rmtree(dest, ignore_errors=True)
         dest.mkdir(parents=True, exist_ok=True)
-        if cfg_backup and cfg_backup.exists():
-            shutil.copy2(cfg_backup, dest / "config.json")
-            try:
-                cfg_backup.write_bytes(b"\x00" * cfg_backup.stat().st_size)
-            except OSError:
-                pass
-            cfg_backup.unlink(missing_ok=True)
+        for name in kept:
+            shutil.move(str(backup / name), str(dest / name))
+        shutil.rmtree(backup, ignore_errors=True)
     else:
         dest.mkdir(parents=True, exist_ok=True)
 
@@ -225,8 +245,14 @@ def main() -> int:
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
+    title = "CtrlNote Trader" if _payload_edition() == "trader" else "CtrlNote"
+    tagline = (
+        "Fast Obsidian notes + trading journal (Ctrl+Alt+T)"
+        if title.endswith("Trader")
+        else "Fast notes into Obsidian"
+    )
     root = tk.Tk()
-    root.title("CtrlNote Setup")
+    root.title(f"{title} Setup")
     root.geometry("460x320")
     root.resizable(False, False)
 
@@ -234,7 +260,7 @@ def main() -> int:
     desktop_var = tk.BooleanVar(value=True)
     start_var = tk.BooleanVar(value=True)
     auto_var = tk.BooleanVar(value=True)
-    status_var = tk.StringVar(value="Installs CtrlNote and creates shortcuts.")
+    status_var = tk.StringVar(value=f"Installs {title} and creates shortcuts. Your settings are kept.")
 
     try:
         # Иконка окна, если есть рядом с setup
@@ -249,8 +275,8 @@ def main() -> int:
     frm = ttk.Frame(root, padding=16)
     frm.pack(fill="both", expand=True)
 
-    ttk.Label(frm, text="CtrlNote Setup", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-    ttk.Label(frm, text="Fast notes into Obsidian", foreground="#555").pack(anchor="w", pady=(0, 12))
+    ttk.Label(frm, text=f"{title} Setup", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+    ttk.Label(frm, text=tagline, foreground="#555").pack(anchor="w", pady=(0, 12))
 
     path_row = ttk.Frame(frm)
     path_row.pack(fill="x", pady=(0, 8))
@@ -280,7 +306,7 @@ def main() -> int:
             messagebox.showwarning("CtrlNote", "Choose an install folder")
             return
         try:
-            status_var.set("Close CtrlNote if it is running…")
+            status_var.set("Installing…")
             root.update_idletasks()
             exe = install(
                 dest,
