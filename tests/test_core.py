@@ -57,7 +57,7 @@ class NoteSaverTests(unittest.TestCase):
 
             path = save_note("Заголовок\nтекст заметки", vault, "Projects/Alpha")
             self.assertTrue(path.exists())
-            self.assertEqual(path.parent, vault / "Projects" / "Alpha")
+            self.assertEqual(path.parent, (vault / "Projects" / "Alpha").resolve())
             self.assertTrue(path.name.endswith("Заголовок.md"))
             self.assertIn("текст заметки", path.read_text(encoding="utf-8"))
 
