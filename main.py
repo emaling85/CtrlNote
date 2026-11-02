@@ -234,9 +234,33 @@ class CtrlNoteApp:
         self.window.hide()
 
 
+def _setup_log() -> None:
+    """В собранном exe нет консоли: вывод и ошибки пишем в logs/ctrlnote.log рядом с программой."""
+    if not getattr(sys, "frozen", False):
+        return
+    from config import APP_DIR
+
+    try:
+        log_dir = APP_DIR / "logs"
+        log_dir.mkdir(exist_ok=True)
+        log_path = log_dir / "ctrlnote.log"
+        # Не даём логу разрастаться бесконечно
+        if log_path.exists() and log_path.stat().st_size > 1_000_000:
+            log_path.replace(log_dir / "ctrlnote.old.log")
+        stream = log_path.open("a", encoding="utf-8", buffering=1)
+    except OSError:
+        return
+    sys.stdout = sys.stderr = stream
+    from datetime import datetime
+
+    print(f"=== CtrlNote start {datetime.now():%Y-%m-%d %H:%M:%S} ===")
+
+
 def main() -> None:
     """Точка входа: не даём запустить вторую копию и стартуем приложение."""
     from i18n import init_from_config
+
+    _setup_log()
 
     if not ensure_single_instance():
         print("CtrlNote already running.", file=sys.stderr)

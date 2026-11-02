@@ -152,7 +152,9 @@ class GlobalHotkey:
                 try:
                     self.callback()
                 except Exception:  # noqa: BLE001
-                    pass
+                    import traceback
+
+                    traceback.print_exc()  # не роняем поток хоткея, но оставляем след в логе
             else:
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
